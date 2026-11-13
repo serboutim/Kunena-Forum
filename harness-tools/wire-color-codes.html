@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wire Color Code Reference &amp; Marker Builder</title>
+<meta name="description" content="Wire color codes for AC, DC, marine ABYC, trailer, Ethernet, USB, thermocouples, RC servos, IEC 60757 abbreviations and MIL-STD-681 numbering.">
+<style>
+:root{--bg:#0f1419;--panel:#172029;--line:#2a3743;--text:#e6edf3;--mut:#8b9bab;--acc:#f59e0b}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px}header a{color:var(--mut);text-decoration:none}
+h1{font-size:20px;margin:0}h2{font-size:15px;margin:0 0 10px}main{max-width:1200px;margin:0 auto;padding:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+label{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}
+input,select{width:100%;background:#0b1015;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:18px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}th{color:var(--mut);font-weight:500}
+.sw{display:inline-block;width:46px;height:14px;border-radius:7px;border:1px solid #0006;vertical-align:middle}
+.note{font-size:12px;color:var(--mut)}.code{font-family:ui-monospace,monospace;font-size:26px;font-weight:700}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}.tabs button{background:#2a3743;color:var(--text);border:0;border-radius:16px;padding:6px 12px;cursor:pointer}.tabs button.on{background:var(--acc);color:#111}
+</style>
+</head>
+<body>
+<header><a href="index.html">&larr; Harness Tools</a><h1>Wire Color Codes</h1></header>
+<main>
+<div class="card">
+  <h2>Marker builder (IEC 60757 abbreviations)</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end">
+    <div><label>Base color</label><select id="base"></select></div>
+    <div><label>Stripe / tracer 1</label><select id="s1"></select></div>
+    <div><label>Stripe / tracer 2</label><select id="s2"></select></div>
+    <div><label>Notation</label><select id="fmt"><option value="/">WH/RD</option><option value="-">WH-RD</option><option value="">WHRD</option></select></div>
+  </div>
+  <div style="display:flex;gap:24px;align-items:center;margin-top:16px;flex-wrap:wrap"><svg id="wire" width="420" height="44"></svg><div class="code" id="code"></div><div class="note" id="long"></div></div>
+</div>
+<div class="card"><input id="q" placeholder="Search all tables, e.g. 'ground', 'brown', 'starter'"></div>
+<div class="tabs" id="tabs"></div>
+<div class="grid" id="tables"></div>
+<p class="note">This is a quick reference. Local codes, OEM specifications and the current edition of each standard take precedence. Always confirm polarity with a meter before you power up.</p>
+</main>
+<script>
+const C={BK:['Black','#111'],BN:['Brown','#7b4a1e'],RD:['Red','#d62828'],OG:['Orange','#f77f00'],YE:['Yellow','#f5d000'],GN:['Green','#2a9d3a'],BU:['Blue','#1d4ed8'],VT:['Violet','#7c3aed'],GY:['Grey','#8a8f98'],WH:['White','#f4f4f4'],PK:['Pink','#f49ac1'],TQ:['Turquoise','#14b8a6'],GD:['Gold','#c9a227'],SR:['Silver','#c0c0c0'],LB:['Light blue','#7cc4f5'],DB:['Dark blue','#1e3a8a'],TN:['Tan','#d2b48c'],DG:['Dark grey','#4b5563'],GNYE:['Green/yellow','stripe:#2a9d3a:#f5d000']};
+const sw=k=>{const v=C[k][1];if(v.startsWith('stripe')){const[,a,b]=v.split(':');return `<span class=sw style="background:repeating-linear-gradient(90deg,${a} 0 8px,${b} 8px 16px)"></span>`}return `<span class=sw style="background:${v}"></span>`};
+const swPair=(a,b)=>b?`<span class=sw style="background:linear-gradient(${C[a][1]} 0 35%,${C[b][1]} 35% 65%,${C[a][1]} 65%)"></span>`:sw(a);
+const T=[
+ {cat:'Power',t:'IEC 60445 AC power (EU / UK / IEC)',cols:['Conductor','Color'],r:[['L1',['BN']],['L2',['BK']],['L3',['GY']],['Neutral',['BU']],['Protective earth',['GNYE']]]},
+ {cat:'Power',t:'US NEC AC power (convention)',cols:['Conductor','Color'],r:[['120/208 V L1 / L2 / L3',['BK'],['RD'],['BU']],['277/480 V L1 / L2 / L3',['BN'],['OG'],['YE']],['Neutral',['WH'],['GY']],['Equipment ground',['GN'],['GNYE']]]},
+ {cat:'Power',t:'IEC 60445 DC',cols:['Conductor','Color'],r:[['L+ positive',['BN']],['L\u2212 negative',['GY']],['M mid-point',['BU']],['Protective earth',['GNYE']]]},
+ {cat:'Power',t:'Common low-voltage DC (automotive / electronics)',cols:['Conductor','Color'],r:[['Positive',['RD']],['Negative / ground',['BK']]]},
+ {cat:'Marine',t:'ABYC E-11 DC system',cols:['Use','Color'],r:[['DC positive',['RD']],['DC negative',['BK'],['YE']],['DC grounding (bonding)',['GN'],['GNYE']]]},
+ {cat:'Marine',t:'ABYC E-11 engine & accessory circuits',cols:['Circuit','Color'],r:[['Starting circuit',['YE','RD']],['Bilge blower',['BN','YE']],['Navigation lights',['DG']],['Generator armature / pumps',['BN']],['Accessory feed',['OG']],['Ignition / instrument feed',['VT']],['Cabin & instrument lights',['DB']],['Oil pressure sender',['LB']],['Water temperature sender',['TN']],['Fuel gauge sender',['PK']],['Tilt / trim',['GN','WH']]]},
+ {cat:'Vehicle',t:'4-pin flat trailer connector (US)',cols:['Function','Color'],r:[['Ground',['WH']],['Tail / running lights',['BN']],['Left turn / brake',['YE']],['Right turn / brake',['GN']]]},
+ {cat:'Data',t:'Ethernet T568B',cols:['Pin','Color'],r:[['1',['WH','OG']],['2',['OG']],['3',['WH','GN']],['4',['BU']],['5',['WH','BU']],['6',['GN']],['7',['WH','BN']],['8',['BN']]]},
+ {cat:'Data',t:'Ethernet T568A',cols:['Pin','Color'],r:[['1',['WH','GN']],['2',['GN']],['3',['WH','OG']],['4',['BU']],['5',['WH','BU']],['6',['OG']],['7',['WH','BN']],['8',['BN']]]},
+ {cat:'Data',t:'USB 2.0 cable',cols:['Signal','Color'],r:[['VBUS +5 V',['RD']],['D\u2212',['WH']],['D+',['GN']],['GND',['BK']]]},
+ {cat:'Data',t:'RC servo / hobby',cols:['Signal','Color'],r:[['Ground',['BN'],['BK']],['V+',['RD']],['Signal',['OG'],['YE'],['WH']]]},
+ {cat:'Sensors',t:'Thermocouple ANSI MC96.1 (US)',cols:['Type','+ / \u2212'],r:[['Type K',['YE'],['RD']],['Type J',['WH'],['RD']],['Type T',['BU'],['RD']],['Type E',['VT'],['RD']]]},
+ {cat:'Sensors',t:'Thermocouple IEC 60584-3',cols:['Type','+ / \u2212'],r:[['Type K',['GN'],['WH']],['Type J',['BK'],['WH']],['Type T',['BN'],['WH']],['Type E',['VT'],['WH']]]},
+ {cat:'Numbering',t:'MIL-STD-681 / resistor digit colors',cols:['Digit','Color'],r:[['0',['BK']],['1',['BN']],['2',['RD']],['3',['OG']],['4',['YE']],['5',['GN']],['6',['BU']],['7',['VT']],['8',['GY']],['9',['WH']]]},
+ {cat:'Numbering',t:'IEC 60757 abbreviations',cols:['Code','Color'],r:Object.keys(C).filter(k=>!['LB','DB','TN','DG','GNYE'].includes(k)).map(k=>[k,[k]])}
+];
+const $=id=>document.getElementById(id);let cat='All';
+const cats=['All',...new Set(T.map(t=>t.cat))];
+$('tabs').innerHTML=cats.map(c=>`<button data-c="${c}" class="${c==cat?'on':''}">${c}</button>`).join('');
+$('tabs').onclick=e=>{if(!e.target.dataset.c)return;cat=e.target.dataset.c;[...$('tabs').children].forEach(b=>b.classList.toggle('on',b.dataset.c==cat));draw()};
+function cell(opts){return opts.map(o=>`${swPair(o[0],o[1])} ${o.map(k=>C[k][0]).join(' w/ ')}`).join('<br>')}
+function draw(){
+  const q=$('q').value.toLowerCase();
+  $('tables').innerHTML=T.filter(t=>cat==='All'||t.cat===cat).map(t=>{
+    const rows=t.r.filter(r=>!q||(t.t+' '+r[0]+' '+r.slice(1).flat().map(k=>C[k][0]+' '+k).join(' ')).toLowerCase().includes(q));
+    if(!rows.length)return '';
+    return `<div class=card><h2>${t.t}</h2><table><tr><th>${t.cols[0]}</th><th>${t.cols[1]}</th></tr>${rows.map(r=>`<tr><td>${r[0]}</td><td>${cell(r.slice(1))}</td></tr>`).join('')}</table></div>`}).join('');
+}
+$('q').oninput=draw;
+const keys=Object.keys(C).filter(k=>k!=='GNYE');
+['base','s1','s2'].forEach((id,i)=>{$(id).innerHTML=(i?'<option value="">(none)</option>':'')+keys.map(k=>`<option value="${k}">${k} - ${C[k][0]}</option>`).join('');$(id).onchange=marker});
+$('base').value='WH';$('s1').value='RD';$('fmt').onchange=marker;
+function marker(){
+  const b=$('base').value,s=[$('s1').value,$('s2').value].filter(Boolean),f=$('fmt').value;
+  $('code').textContent=[b,...s].join(f);$('long').textContent=C[b][0]+(s.length?' with '+s.map(k=>C[k][0].toLowerCase()).join(' and ')+' stripe':'');
+  let svg=`<rect x="0" y="8" width="400" height="28" rx="14" fill="${C[b][1]}" stroke="#000" stroke-opacity=".4"/>`;
+  s.forEach((k,j)=>{for(let x=20+j*14;x<390;x+=40)svg+=`<rect x="${x}" y="8" width="8" height="28" fill="${C[k][1]}" transform="translate(9,0) skewX(-20)"/>`});
+  svg+=`<rect x="400" y="14" width="20" height="16" fill="#c87533"/>`;$('wire').innerHTML=svg;
+}
+marker();draw();
+</script>
+</body>
+</html>

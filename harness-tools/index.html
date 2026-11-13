@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harness Tools - Free Wire Harness Design &amp; Manufacturing Utilities</title>
+<meta name="description" content="Free browser tools for wire harness engineers and shops: wire gauge, bundle sizing, connector kits, quoting, work instructions, crimp QA, test programs, labels and more.">
+<style>
+:root{--bg:#0f1419;--panel:#172029;--line:#2a3743;--text:#e6edf3;--mut:#8b9bab;--acc:#f59e0b}
+*{box-sizing:border-box}body{margin:0;font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+.hero{padding:56px 24px 28px;text-align:center;background:radial-gradient(ellipse at top,#f59e0b22,transparent 60%)}
+.hero h1{font-size:40px;margin:0 0 10px;letter-spacing:-.02em}.hero p{color:var(--mut);max-width:640px;margin:0 auto}
+main{max-width:1200px;margin:0 auto;padding:12px 24px 60px}h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--acc);margin:34px 0 12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+a.t{display:block;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;color:var(--text);text-decoration:none;transition:.15s}
+a.t:hover{border-color:var(--acc);transform:translateY(-2px)}a.t b{display:block;font-size:16px;margin-bottom:4px}a.t span{color:var(--mut);font-size:13px}
+.ic{font-size:22px;margin-bottom:8px;color:var(--acc);font-family:ui-monospace,monospace}
+footer{color:var(--mut);font-size:12px;text-align:center;padding:24px;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div class="hero"><h1>Harness Tools</h1><p>Single-file browser tools for people who design, build and test wire harnesses. Nothing is installed and nothing is uploaded: your data stays in your browser.</p></div>
+<main>
+<h2>Design calculators</h2>
+<div class="grid">
+<a class="t" href="wire-gauge-calculator.html"><div class="ic">AWG</div><b>Wire Gauge &amp; Voltage Drop</b><span>Size wire by drop and ampacity with temperature and bundle derating. AWG or mm&sup2;.</span></a>
+<a class="t" href="bundle-diameter-sizer.html"><div class="ic">&#8960;</div><b>Bundle Diameter &amp; Covering Sizer</b><span>Bundle OD from your wire list, plus sleeve, loom, heat shrink and grommet sizes.</span></a>
+<a class="t" href="wire-color-codes.html"><div class="ic">RD/BK</div><b>Wire Color Codes</b><span>AC, DC, ABYC marine, Ethernet, USB, thermocouple, IEC 60757 and a stripe marker builder.</span></a>
+<a class="t" href="dc-system-planner.html"><div class="ic">12V</div><b>DC System Planner</b><span>Van, marine, motorsport, EV and drone presets, giving wire, fuse, battery bank and main feeder sizes.</span></a>
+</div>
+<h2>Parts &amp; compliance</h2>
+<div class="grid">
+<a class="t" href="connector-kit-finder.html"><div class="ic">DT06</div><b>Connector Complete-Kit Finder</b><span>From a housing to the mating half, terminals, wedge locks, plugs and tools, with distributor links.</span></a>
+<a class="t" href="ul-wire-style-checker.html"><div class="ic">UL</div><b>UL / SAE / MIL Wire Style Checker</b><span>Find UL AWM, J1128, ISO 6722 or M22759 types for a given voltage, temperature and environment.</span></a>
+<a class="t" href="bom-health-check.html"><div class="ic">BOM</div><b>BOM Health Check</b><span>Score each BOM line for lifecycle, single source, stock, lead time and RoHS/REACH risk.</span></a>
+</div>
+<h2>Data &amp; revisions</h2>
+<div class="grid">
+<a class="t" href="netlist-converter.html"><div class="ic">.net</div><b>Netlist &rarr; Wire List</b><span>Convert KiCad or net/ref/pin CSV into a wire list, cut list, WireViz YAML or JSON.</span></a>
+<a class="t" href="revision-diff.html"><div class="ic">A&rarr;B</div><b>Revision Diff &amp; ECO</b><span>See added, removed and changed wires between revisions, plus a connector rework list.</span></a>
+<a class="t" href="wire-label-generator.html"><div class="ic">W12</div><b>Wire Label Generator</b><span>Print-ready marker sheets with destination labels, wrap-around repeats and Avery presets.</span></a>
+</div>
+<h2>Manufacturing &amp; test</h2>
+<div class="grid">
+<a class="t" href="quote-estimator.html"><div class="ic">$</div><b>Quote &amp; Cost Estimator</b><span>Labor standards, materials and quantity breaks, producing a branded printable quote.</span></a>
+<a class="t" href="work-instructions.html"><div class="ic">1-2-3</div><b>Work-Instruction Generator</b><span>Step-by-step operator mode with a cavity map, sign-off and traceability log.</span></a>
+<a class="t" href="crimp-quality-log.html"><div class="ic">Cpk</div><b>Crimp Quality Log</b><span>Crimp height and pull tests against limits, with Cpk and a run chart.</span></a>
+<a class="t" href="continuity-test-generator.html"><div class="ic">TP</div><b>Continuity Test Generator</b><span>Nets, a test-point map, a DIY Arduino tester sketch and an open/short checker.</span></a>
+</div>
+</main>
+<footer>These are engineering aids. Verify the results against the governing standards and the manufacturer datasheets.</footer>
+</body>
+</html>

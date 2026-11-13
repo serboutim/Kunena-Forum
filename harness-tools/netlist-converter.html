@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Netlist to Wire List Converter (KiCad, CSV, WireViz)</title>
+<meta name="description" content="Convert KiCad netlists or net/ref/pin CSV exports into a harness wire list, from-to table, WireViz YAML and JSON.">
+<style>
+:root{--bg:#0f1419;--panel:#172029;--line:#2a3743;--text:#e6edf3;--mut:#8b9bab;--acc:#f59e0b;--bad:#ef4444}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px}header a{color:var(--mut);text-decoration:none}
+h1{font-size:20px;margin:0}h2{font-size:15px;margin:0 0 12px}main{max-width:1250px;margin:0 auto;padding:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+label{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}
+input,select,textarea{width:100%;background:#0b1015;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit}
+textarea{font-family:ui-monospace,monospace;font-size:12px}
+button{background:var(--acc);color:#111;border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer}button.sec{background:#2a3743;color:var(--text)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--mut);font-weight:500}
+td input{padding:3px 5px}.note{font-size:12px;color:var(--mut)}pre{background:#0b1015;border:1px solid var(--line);border-radius:6px;padding:12px;overflow:auto;max-height:420px;font-size:12px}
+.tabs{display:flex;gap:6px;margin-bottom:10px}.tabs button{background:#2a3743;color:var(--text)}.tabs button.on{background:var(--acc);color:#111}
+</style>
+</head>
+<body>
+<header><a href="index.html">&larr; Harness Tools</a><h1>Netlist &rarr; Wire List Converter</h1></header>
+<main>
+<div class="card"><h2>Input</h2>
+<div class="grid" style="margin-bottom:10px">
+<div><label>Format</label><select id="fmt"><option value="auto">Auto-detect</option><option value="kicad">KiCad netlist (.net, s-expression)</option><option value="nrp">CSV: net, ref, pin (Altium / EPLAN / Excel)</option><option value="wl">CSV wire list (from/to)</option></select></div>
+<div><label>Include refs matching (regex)</label><input id="refs" value="^(J|P|X|CN|CON)"></div>
+<div><label>Multi-pin nets</label><select id="topo"><option value="chain">Daisy chain</option><option value="star">Star with splice (SPn)</option></select></div>
+<div><label>Default gauge (AWG)</label><input id="dg" value="20"></div><div><label>Default color</label><input id="dc" value="WH"></div><div><label>Default length (mm)</label><input id="dl" type="number" value="500"></div>
+</div>
+<textarea id="src" rows="12"></textarea>
+<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button id="conv">Convert</button><button class="sec" id="sK">KiCad sample</button><button class="sec" id="sN">Net/Ref/Pin sample</button>
+<label style="display:inline-block;background:#2a3743;padding:8px 14px;border-radius:6px;cursor:pointer;margin:0;color:var(--text)">Open file<input type="file" id="file" hidden></label></div>
+<div class="note" id="msg" style="margin-top:8px"></div></div>
+<div class="card"><h2>Wire list <span class="note">(you can edit the cells, and exports pick up the changes)</span></h2>
+<table><thead><tr><th>Wire</th><th>Net</th><th>From</th><th>Pin</th><th>To</th><th>Pin</th><th>AWG</th><th>Color</th><th>Length mm</th></tr></thead><tbody id="tb"></tbody></table></div>
+<div class="card"><div class="tabs" id="tabs"><button class="on" data-o="csv">Wire list CSV</button><button data-o="ft">From-to text</button><button data-o="yaml">WireViz YAML</button><button data-o="json">JSON</button><button data-o="cut">Cut list</button></div>
+<pre id="out"></pre><button class="sec" id="dlOut">Download</button> <button class="sec" id="cpOut">Copy</button></div>
+</main>
+<script>
+const KSAMPLE=`(export (version "E")
+  (components (comp (ref "J1")) (comp (ref "J2")) (comp (ref "J3")) (comp (ref "R1")))
+  (nets
+    (net (code "1") (name "+12V") (node (ref "J1") (pin "1")) (node (ref "J2") (pin "1")) (node (ref "J3") (pin "1")))
+    (net (code "2") (name "GND") (node (ref "J1") (pin "2")) (node (ref "J2") (pin "2")) (node (ref "J3") (pin "2")))
+    (net (code "3") (name "CAN_H") (node (ref "J1") (pin "3")) (node (ref "J2") (pin "3")))
+    (net (code "4") (name "CAN_L") (node (ref "J1") (pin "4")) (node (ref "J2") (pin "4")) (node (ref "R1") (pin "1")))))`;
+const NSAMPLE=`net,ref,pin
+VBAT,J1,1
+VBAT,J4,A
+GND,J1,2
+GND,J4,B
+GND,J5,1
+SIG1,J1,3
+SIG1,J5,2`;
+const $=id=>document.getElementById(id);let W=[],out='csv';
+function sexpr(t){const tok=t.match(/"(?:[^"\\]|\\.)*"|[()]|[^\s()"]+/g)||[];let i=0;const rd=()=>{const x=tok[i++];if(x==='('){const l=[];while(tok[i]!==')'&&i<tok.length)l.push(rd());i++;return l}return x&&x[0]==='"'?JSON.parse(x):x};const r=[];while(i<tok.length)r.push(rd());return r}
+function kicadNets(t){const nets=[];const walk=n=>{if(!Array.isArray(n))return;if(n[0]==='net'){const name=(n.find(x=>Array.isArray(x)&&x[0]==='name')||[])[1]||'';const nodes=n.filter(x=>Array.isArray(x)&&x[0]==='node').map(x=>({ref:(x.find(y=>y[0]==='ref')||[])[1],pin:(x.find(y=>y[0]==='pin')||[])[1]}));nets.push({name,nodes});return}n.forEach(walk)};sexpr(t).forEach(walk);return nets}
+function csvRows(t){const L=t.trim().split(/\r?\n/).map(l=>l.split(/[,\t;]/).map(x=>x.trim().replace(/^"|"$/g,'')));const h=L.shift().map(x=>x.toLowerCase());return L.filter(r=>r.length>1).map(r=>Object.fromEntries(h.map((k,i)=>[k,r[i]||''])))}
+function convert(){
+  const t=$('src').value.trim();let f=$('fmt').value;if(!t)return;
+  if(f==='auto')f=t.startsWith('(')?'kicad':/^[^\n]*\bfrom\b/i.test(t)?'wl':'nrp';
+  const dg=$('dg').value,dc=$('dc').value,dl=$('dl').value,re=new RegExp($('refs').value||'.','i');W=[];
+  if(f==='wl'){csvRows(t).forEach((r,i)=>W.push({wire:r.wire||'W'+(i+1),net:r.net||'',from:r.from,fp:r.from_pin,to:r.to,tp:r.to_pin,g:r.gauge||dg,c:r.color||dc,l:r.length_mm||dl}))}
+  else{let nets;if(f==='kicad')nets=kicadNets(t);else{const m={};csvRows(t).forEach(r=>{const n=r.net||r['net name']||r.signal,ref=r.ref||r.designator||r.refdes||r.component,pin=r.pin||r['pin number'];(m[n]=m[n]||[]).push({ref,pin})});nets=Object.entries(m).map(([name,nodes])=>({name,nodes}))}
+    let sp=0,dropped=0;nets.forEach(n=>{const nodes=n.nodes.filter(x=>re.test(x.ref));dropped+=n.nodes.length-nodes.length;if(nodes.length<2)return;
+      nodes.sort((a,b)=>a.ref.localeCompare(b.ref,undefined,{numeric:true})||String(a.pin).localeCompare(b.pin,undefined,{numeric:true}));
+      const add=(a,b)=>W.push({wire:'W'+(W.length+1),net:n.name,from:a.ref,fp:a.pin,to:b.ref,tp:b.pin,g:dg,c:dc,l:dl});
+      if($('topo').value==='star'&&nodes.length>2){const s={ref:'SP'+(++sp),pin:'1'};nodes.forEach(x=>add(x,s))}else for(let i=1;i<nodes.length;i++)add(nodes[i-1],nodes[i])});
+    $('msg').textContent=`Parsed ${nets.length} nets as ${f==='kicad'?'KiCad':'net/ref/pin'} and created ${W.length} wires. ${dropped} pins on non-harness refs were skipped.`;}
+  if(f==='wl')$('msg').textContent=`Loaded ${W.length} wires.`;
+  draw();
+}
+const K=['wire','net','from','fp','to','tp','g','c','l'];
+function draw(){$('tb').innerHTML=W.map((w,i)=>`<tr>${K.map(k=>`<td><input data-i=${i} data-k=${k} value="${String(w[k]??'').replace(/"/g,'&quot;')}"></td>`).join('')}</tr>`).join('');render()}
+$('tb').oninput=e=>{const d=e.target.dataset;if(d.i!=null){W[d.i][d.k]=e.target.value;render()}};
+function yaml(){
+  const conns={};W.forEach(w=>[[w.from,w.fp],[w.to,w.tp]].forEach(([c,p])=>{(conns[c]=conns[c]||new Set()).add(String(p))}));
+  let y='connectors:\n';Object.entries(conns).forEach(([c,ps])=>{const a=[...ps];const num=a.every(p=>/^\d+$/.test(p));y+=`  ${c}:\n`+(num?`    pincount: ${Math.max(...a.map(Number))}\n`:`    pins: [${a.sort().join(', ')}]\n`)+(/^SP/i.test(c)?'    style: simple\n    type: Splice\n':'')});
+  const groups={};W.forEach(w=>{const k=w.from+'|'+w.to;(groups[k]=groups[k]||[]).push(w)});
+  y+='\ncables:\n';const G=Object.values(groups);G.forEach((g,i)=>{y+=`  C${i+1}:\n    wirecount: ${g.length}\n    colors: [${g.map(w=>w.c||'WH').join(', ')}]\n    gauge: ${g[0].g} AWG\n    length: ${(Math.max(...g.map(w=>+w.l||0))/1000).toFixed(2)}\n    wirelabels: [${g.map(w=>w.wire).join(', ')}]\n`});
+  y+='\nconnections:\n';G.forEach((g,i)=>{y+=`  -\n    - ${g[0].from}: [${g.map(w=>w.fp).join(', ')}]\n    - C${i+1}: [${g.map((_,j)=>j+1).join(', ')}]\n    - ${g[0].to}: [${g.map(w=>w.tp).join(', ')}]\n`});
+  return y;
+}
+function render(){
+  const q=v=>/[",]/.test(v)?`"${String(v).replace(/"/g,'""')}"`:v;
+  if(out==='csv')$('out').textContent='wire,net,from,from_pin,to,to_pin,gauge,color,length_mm\n'+W.map(w=>K.map(k=>q(w[k]??'')).join(',')).join('\n');
+  if(out==='ft')$('out').textContent=W.map(w=>`${w.wire.padEnd(6)} ${(w.from+':'+w.fp).padEnd(10)} -> ${(w.to+':'+w.tp).padEnd(10)} ${w.g} AWG ${w.c}  ${w.l} mm  ${w.net}`).join('\n');
+  if(out==='yaml')$('out').textContent=yaml();
+  if(out==='json')$('out').textContent=JSON.stringify(W.map(w=>({wire:w.wire,net:w.net,from:{connector:w.from,pin:w.fp},to:{connector:w.to,pin:w.tp},gauge_awg:w.g,color:w.c,length_mm:+w.l})),null,2);
+  if(out==='cut'){const g={};W.forEach(w=>{const k=`${w.g} AWG ${w.c}`;g[k]=g[k]||{n:0,mm:0,ids:[]};g[k].n++;g[k].mm+=+w.l||0;g[k].ids.push(w.wire+'@'+w.l)});
+    $('out').textContent=Object.entries(g).map(([k,v])=>`${k.padEnd(14)} ${String(v.n).padStart(3)} pcs  total ${(v.mm/1000).toFixed(2)} m   ${v.ids.join(' ')}`).join('\n')}
+}
+$('tabs').onclick=e=>{if(!e.target.dataset.o)return;out=e.target.dataset.o;[...$('tabs').children].forEach(b=>b.classList.toggle('on',b===e.target));render()};
+$('dlOut').onclick=()=>{const ext={csv:'csv',ft:'txt',yaml:'yml',json:'json',cut:'txt'}[out];const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([$('out').textContent]));a.download='harness-'+out+'.'+ext;a.click()};
+$('cpOut').onclick=()=>navigator.clipboard.writeText($('out').textContent);
+$('conv').onclick=convert;$('sK').onclick=()=>{$('src').value=KSAMPLE;convert()};$('sN').onclick=()=>{$('src').value=NSAMPLE;convert()};
+$('file').onchange=e=>{const f=e.target.files[0];if(f)f.text().then(t=>{$('src').value=t;convert()})};
+['topo','refs'].forEach(i=>$(i).addEventListener('change',convert));
+$('src').value=KSAMPLE;convert();
+</script>
+</body>
+</html>

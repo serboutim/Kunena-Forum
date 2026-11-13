@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wire Label &amp; Marker Sheet Generator</title>
+<meta name="description" content="Generate print-ready wire marker and heat-shrink label sheets from a wire list, with destination labeling and wrap-around repeats.">
+<style id="pagecss"></style>
+<style>
+:root{--bg:#0f1419;--panel:#172029;--line:#2a3743;--text:#e6edf3;--mut:#8b9bab;--acc:#f59e0b}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px}header a{color:var(--mut);text-decoration:none}
+h1{font-size:20px;margin:0}h2{font-size:15px;margin:0 0 12px}main{max-width:1300px;margin:0 auto;padding:24px;display:grid;grid-template-columns:420px 1fr;gap:18px}@media(max-width:1000px){main{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+label{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}
+input,select,textarea{width:100%;background:#0b1015;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px;font:inherit}
+textarea{font-family:ui-monospace,monospace;font-size:12px}
+button{background:var(--acc);color:#111;border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer}button.sec{background:#2a3743;color:var(--text)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.note{font-size:12px;color:var(--mut)}
+#preview{overflow:auto;max-height:85vh}.page{background:#fff;position:relative;margin:0 auto 20px;box-shadow:0 2px 12px #0008;transform-origin:top left}
+.lbl{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#000;overflow:hidden;font-family:Arial,Helvetica,sans-serif;line-height:1.05;text-align:center;white-space:nowrap}
+.lbl.b{outline:0.2mm dashed #bbb}
+@media print{header,.ctrl,.noprint{display:none!important}body{background:#fff}main{display:block;padding:0;max-width:none}#preview{max-height:none;overflow:visible}.page{box-shadow:none;margin:0;break-after:page;transform:none!important}.card{border:0;padding:0;background:none;margin:0}}
+</style>
+</head>
+<body>
+<header><a href="index.html">&larr; Harness Tools</a><h1>Wire Label &amp; Marker Generator</h1></header>
+<main>
+<div class="ctrl">
+<div class="card"><h2>Source</h2>
+<div class="grid"><div><label>Input</label><select id="mode"><option value="csv">Wire list CSV</option><option value="lines">One label per line</option></select></div>
+<div><label>Labels per wire</label><select id="ends"><option value="1">One (template)</option><option value="2" selected>Both ends (destination)</option></select></div></div>
+<label style="margin-top:10px">Template (CSV mode). Use any column name in braces.</label><input id="tpl" value="{wire}">
+<label style="margin-top:10px">Second line (optional)</label><input id="tpl2" value="{dest}">
+<p class="note"><code>{dest}</code> is the far end of the wire, for example J2:1, so each end shows where its wire goes.</p>
+<textarea id="src" rows="9"></textarea></div>
+<div class="card"><h2>Label stock</h2>
+<label>Preset</label><select id="preset"></select>
+<div class="grid" style="margin-top:10px">
+<div><label>Page W (mm)</label><input id="pw" type="number" step="0.1"></div><div><label>Page H (mm)</label><input id="ph" type="number" step="0.1"></div>
+<div><label>Label W (mm)</label><input id="lw" type="number" step="0.1"></div><div><label>Label H (mm)</label><input id="lh" type="number" step="0.1"></div>
+<div><label>Columns</label><input id="cols" type="number"></div><div><label>Rows</label><input id="rows" type="number"></div>
+<div><label>Left margin</label><input id="ml" type="number" step="0.1"></div><div><label>Top margin</label><input id="mt" type="number" step="0.1"></div>
+<div><label>Column gap</label><input id="gx" type="number" step="0.1"></div><div><label>Row gap</label><input id="gy" type="number" step="0.1"></div>
+</div></div>
+<div class="card"><h2>Text</h2><div class="grid">
+<div><label>Font size (pt)</label><input id="fs" type="number" value="9"></div><div><label>Weight</label><select id="fw"><option value="700">Bold</option><option value="400">Regular</option></select></div>
+<div><label>Repeat (wrap-around)</label><input id="rep" type="number" value="1" min="1" title="Repeat text vertically so it is readable from any angle"></div>
+<div><label>Rotate text</label><select id="rot"><option value="0">0&deg;</option><option value="90">90&deg;</option></select></div>
+<div><label>Copies of each</label><input id="cp" type="number" value="1" min="1"></div><div><label>Skip used labels</label><input id="skip" type="number" value="0" min="0"></div>
+<div><label>Cut guides</label><select id="bd"><option value="1">Show</option><option value="0">Hide</option></select></div></div>
+<div style="margin-top:12px;display:flex;gap:8px"><button onclick="window.print()">Print</button><button class="sec" id="csv">Export CSV for label software</button></div>
+<p class="note">Print at 100% scale ("Actual size") with no headers or footers. Test on plain paper first and hold it against the label stock.</p></div>
+</div>
+<div class="card" id="preview"><div class="note noprint" id="sum" style="margin-bottom:10px"></div><div id="pages"></div></div>
+</main>
+<script>
+const PRESETS={
+ 'avery5160':{n:'Avery 5160 - Letter, 30 up, 66.7 x 25.4 mm',pw:215.9,ph:279.4,lw:66.675,lh:25.4,cols:3,rows:10,ml:4.76,mt:12.7,gx:3.18,gy:0},
+ 'averyL7160':{n:'Avery L7160 - A4, 21 up, 63.5 x 38.1 mm',pw:210,ph:297,lw:63.5,lh:38.1,cols:3,rows:7,ml:7.2,mt:15.15,gx:2.5,gy:0},
+ 'averyL7651':{n:'Avery L7651 - A4, 65 up, 38.1 x 21.2 mm',pw:210,ph:297,lw:38.1,lh:21.2,cols:5,rows:13,ml:4.75,mt:10.7,gx:2.5,gy:0},
+ 'wrap1x15':{n:'Wrap-around markers - Letter, 25.4 x 38.1 mm (generic)',pw:215.9,ph:279.4,lw:25.4,lh:38.1,cols:7,rows:6,ml:10,mt:12,gx:4,gy:4},
+ 'hs_sleeve':{n:'Heat-shrink sleeve sheet - 9.5 mm flat, 25.4 mm long (generic)',pw:215.9,ph:279.4,lw:25.4,lh:9.5,cols:7,rows:20,ml:10,mt:15,gx:3,gy:3},
+ 'roll':{n:'Thermal roll / continuous - 25 x 12 mm (one per page)',pw:25,ph:12,lw:25,lh:12,cols:1,rows:1,ml:0,mt:0,gx:0,gy:0},
+ 'custom':{n:'Custom'}
+};
+const SAMPLE=`wire,from,from_pin,to,to_pin,gauge,color
+W1,J1,1,J2,1,18,RD
+W2,J1,2,J2,2,18,BK
+W3,J1,3,J3,1,20,WH
+W4,J1,4,J3,2,20,GN
+W5,J2,3,J3,3,20,BU`;
+const $=id=>document.getElementById(id);const G=['pw','ph','lw','lh','cols','rows','ml','mt','gx','gy'];
+$('preset').innerHTML=Object.entries(PRESETS).map(([k,v])=>`<option value="${k}">${v.n}</option>`).join('');
+$('preset').onchange=()=>{const p=PRESETS[$('preset').value];if(p.pw)G.forEach(k=>$(k).value=p[k]);draw()};
+G.forEach(k=>$(k).addEventListener('input',()=>{$('preset').value='custom';draw()}));
+['mode','ends','tpl','tpl2','src','fs','fw','rep','rot','cp','skip','bd'].forEach(k=>$(k).addEventListener('input',draw));
+function parse(t){const L=t.trim().split(/\r?\n/).map(l=>l.split(/[,\t;]/).map(x=>x.trim()));const h=L.shift().map(x=>x.toLowerCase());return L.filter(r=>r.some(Boolean)).map(r=>Object.fromEntries(h.map((k,i)=>[k,r[i]||''])))}
+const fill=(t,r)=>t.replace(/\{(\w+)\}/g,(_,k)=>r[k.toLowerCase()]??'');
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+let LABELS=[];
+function labels(){
+  if($('mode').value==='lines')return $('src').value.split(/\r?\n/).filter(l=>l.trim()).map(l=>l.split('|'));
+  const rows=parse($('src').value),out=[];
+  rows.forEach(r=>{if($('ends').value==='2'){out.push([fill($('tpl').value,{...r,dest:`${r.to}:${r.to_pin}`}),fill($('tpl2').value,{...r,dest:`${r.to}:${r.to_pin}`})]);out.push([fill($('tpl').value,{...r,dest:`${r.from}:${r.from_pin}`}),fill($('tpl2').value,{...r,dest:`${r.from}:${r.from_pin}`})])}
+    else out.push([fill($('tpl').value,{...r,dest:`${r.to}:${r.to_pin}`}),fill($('tpl2').value,{...r,dest:`${r.to}:${r.to_pin}`})])});
+  return out.map(l=>l.filter(x=>x.trim()));
+}
+function draw(){
+  const g=Object.fromEntries(G.map(k=>[k,+$(k).value||0])),per=Math.max(1,g.cols*g.rows),cp=Math.max(1,+$('cp').value||1),rep=Math.max(1,+$('rep').value||1),skip=Math.max(0,+$('skip').value||0);
+  LABELS=[];labels().forEach(l=>{for(let i=0;i<cp;i++)LABELS.push(l)});
+  const slots=[...Array(skip).fill(null),...LABELS],pages=Math.max(1,Math.ceil(slots.length/per));
+  $('pagecss').textContent=`@page{size:${g.pw}mm ${g.ph}mm;margin:0}`;
+  const scale=Math.min(1,($('preview').clientWidth-40)/(g.pw*3.78));let html='';
+  for(let p=0;p<pages;p++){html+=`<div class=page style="width:${g.pw}mm;height:${g.ph}mm;transform:scale(${scale});margin-bottom:${-(1-scale)*g.ph*3.78+20}px">`;
+    for(let i=0;i<per;i++){const l=slots[p*per+i];const c=i%g.cols,r=Math.floor(i/g.cols);const x=g.ml+c*(g.lw+g.gx),y=g.mt+r*(g.lh+g.gy);
+      const rot=$('rot').value==='90';const inner=l?Array(rep).fill(l.map(esc).join('<br>')).join('<div style="height:1mm"></div>'):'';
+      html+=`<div class="lbl ${$('bd').value==='1'?'b':''}" style="left:${x}mm;top:${y}mm;width:${g.lw}mm;height:${g.lh}mm;font-size:${$('fs').value}pt;font-weight:${$('fw').value}"><div style="${rot?'transform:rotate(90deg)':''}">${inner}</div></div>`}
+    html+='</div>'}
+  $('pages').innerHTML=html;$('sum').textContent=`${LABELS.length} labels on ${pages} page(s) · ${per} per sheet`;
+}
+$('csv').onclick=()=>{const csv='line1,line2\n'+LABELS.map(l=>[l[0]||'',l[1]||''].map(v=>`"${v.replace(/"/g,'""')}"`).join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='wire-labels.csv';a.click()};
+window.addEventListener('resize',draw);
+$('src').value=SAMPLE;$('preset').value='hs_sleeve';$('preset').onchange();
+</script>
+</body>
+</html>

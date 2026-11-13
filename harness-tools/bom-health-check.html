@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harness BOM Health Check (Lifecycle, Stock, Lead Time, Compliance)</title>
+<meta name="description" content="Score every line of a harness BOM for lifecycle, single-source, stock coverage, lead time and RoHS/REACH risk.">
+<style>
+:root{--bg:#0f1419;--panel:#172029;--line:#2a3743;--text:#e6edf3;--mut:#8b9bab;--acc:#f59e0b;--ok:#22c55e;--bad:#ef4444;--warn:#eab308}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px}header a{color:var(--mut);text-decoration:none}
+h1{font-size:20px;margin:0}h2{font-size:15px;margin:0 0 12px}main{max-width:1300px;margin:0 auto;padding:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+label{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}
+input,select,textarea{width:100%;background:#0b1015;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit}
+textarea{font-family:ui-monospace,monospace;font-size:12px}
+button{background:var(--acc);color:#111;border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer}button.sec{background:#2a3743;color:var(--text)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:var(--mut);font-weight:500;cursor:pointer;user-select:none}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}.kpi div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}.kpi b{display:block;font-size:26px}
+.H{color:var(--bad)}.M{color:var(--warn)}.L{color:var(--ok)}.chip{display:inline-block;font-size:11px;border-radius:4px;padding:0 6px;margin:1px;background:#2a3743}
+.score{display:inline-block;min-width:38px;text-align:center;border-radius:4px;font-weight:700;padding:1px 4px}.sH{background:#ef444433;color:#fca5a5}.sM{background:#eab30833;color:#fde68a}.sL{background:#22c55e22;color:#86efac}
+a.l{color:#7cc4f5;font-size:12px;margin-right:6px}.note{font-size:12px;color:var(--mut)}
+</style>
+</head>
+<body>
+<header><a href="index.html">&larr; Harness Tools</a><h1>BOM Health Check</h1></header>
+<main>
+<div class="card"><h2>BOM (CSV)</h2>
+<p class="note">Columns: <code>part_number,manufacturer,description,qty_per,unit_price,lifecycle,sources,stock,lead_time_wk,rohs,reach</code>. Lifecycle can be Active, NRND, EOL, LTB, Obsolete or blank. RoHS and REACH can be Y, N or blank. You can export these fields from a Digi-Key, Mouser or Octopart BOM tool and paste them here, because live pricing APIs need your own keys.</p>
+<textarea id="csv" rows="10"></textarea>
+<div class="grid" style="margin-top:12px">
+<div><label>Planned build quantity</label><input id="build" type="number" value="500"></div>
+<div><label>Lead-time alert (weeks)</label><input id="lt" type="number" value="12"></div>
+<div><label>Show</label><select id="flt"><option value="">All lines</option><option value="H">High risk</option><option value="M">Medium risk</option><option value="L">Low risk</option></select></div>
+<div style="align-self:end;display:flex;gap:8px"><button id="go">Analyze</button><button class="sec" id="exp">Export</button></div></div></div>
+<div class="kpi" id="kpi" style="margin-bottom:18px"></div>
+<div class="card"><table><thead><tr><th data-s="score">Risk &#8597;</th><th data-s="part_number">Part &#8597;</th><th>Description</th><th data-s="lifecycle">Lifecycle</th><th data-s="sources">Sources</th><th data-s="cov">Coverage &#8597;</th><th data-s="lead">Lead &#8597;</th><th>Compliance</th><th data-s="ext">Ext cost &#8597;</th><th>Why</th><th>Check</th></tr></thead><tbody id="tb"></tbody></table>
+<p class="note">Risk score from 0 to 100: lifecycle up to 60, single source 20, stock coverage below the build need 25, lead time 25, RoHS or REACH gaps 25 (capped at 100). Scores of 50 and above are High and 25 to 49 are Medium.</p></div>
+</main>
+<script>
+const SAMPLE=`part_number,manufacturer,description,qty_per,unit_price,lifecycle,sources,stock,lead_time_wk,rohs,reach
+DT06-4S,TE Deutsch,Plug 4-way,2,1.90,Active,2,12000,6,Y,Y
+DT04-4P,TE Deutsch,Receptacle 4-way,1,2.10,Active,2,8000,6,Y,Y
+0462-201-16141,TE Deutsch,Socket contact size 16,8,0.32,Active,3,250000,4,Y,Y
+0460-202-16141,TE Deutsch,Pin contact size 16,6,0.30,Active,3,180000,4,Y,Y
+W4S,TE Deutsch,Wedgelock 4-way,2,0.25,Active,2,30000,5,Y,Y
+MP150-2S-SAMPLE,Aptiv,Metri-Pack 150 sealed housing (sample),1,0.85,NRND,1,300,26,Y,
+TXL20-RD,Generic,Wire TXL 20 AWG red (m),6,0.22,Active,4,100000,2,Y,Y
+ABC-123,Legacy Corp,Custom grommet,1,1.40,Obsolete,1,120,40,,
+HS-332-1/4,Generic,Heat shrink 1/4 in,4,0.12,Active,5,,3,Y,Y`;
+const $=id=>document.getElementById(id);
+function parse(t){const L=t.trim().split(/\r?\n/).map(l=>l.split(/[,\t;]/).map(x=>x.trim().replace(/^"|"$/g,'')));const h=L.shift().map(x=>x.toLowerCase());return L.filter(r=>r.some(Boolean)).map(r=>Object.fromEntries(h.map((k,i)=>[k,r[i]||''])))}
+const LIFE={active:0,'':15,unknown:15,nrnd:25,ltb:40,eol:40,obsolete:60};
+let ROWS=[],sortK='score',sortD=-1;
+function analyze(){
+  const build=+$('build').value||1,lt=+$('lt').value||12;
+  ROWS=parse($('csv').value).map(r=>{const why=[];let s=0;const life=(r.lifecycle||'').toLowerCase();const lp=LIFE[life]??15;if(lp){s+=lp;why.push(life?r.lifecycle:'lifecycle unknown')}
+    const src=r.sources===''?null:+r.sources;if(src===null){s+=10;why.push('sources unknown')}else if(src<=1){s+=20;why.push('single source')}else if(src===2)s+=5;
+    const need=(+r.qty_per||0)*build,stock=r.stock===''?null:+r.stock,cov=stock===null?null:need?stock/need:Infinity;
+    if(cov===null){s+=8;why.push('stock unknown')}else if(cov<1){s+=25;why.push(`stock covers ${(cov*100).toFixed(0)}% of build`)}else if(cov<2){s+=10;why.push('thin stock')}
+    const lead=r.lead_time_wk===''?null:+r.lead_time_wk;if(lead!==null&&lead>2*lt){s+=25;why.push(`${lead} wk lead`)}else if(lead!==null&&lead>lt){s+=15;why.push(`${lead} wk lead`)}
+    const ro=(r.rohs||'').toUpperCase(),re=(r.reach||'').toUpperCase();if(ro==='N'){s+=15;why.push('not RoHS')}else if(!ro){s+=5;why.push('RoHS unknown')}if(re==='N'){s+=10;why.push('REACH SVHC')}else if(!re){s+=3;why.push('REACH unknown')}
+    s=Math.min(100,s);const lvl=s>=50?'H':s>=25?'M':'L';return{...r,score:s,lvl,why,cov,lead,ext:(+r.qty_per||0)*(+r.unit_price||0)}});
+  draw();
+}
+const links=pn=>{const q=encodeURIComponent(pn);return `<a class=l target=_blank href="https://octopart.com/search?q=${q}">Octopart</a><a class=l target=_blank href="https://www.digikey.com/en/products/result?keywords=${q}">Digi-Key</a><a class=l target=_blank href="https://www.mouser.com/c/?q=${q}">Mouser</a>`};
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function draw(){
+  const build=+$('build').value||1,f=$('flt').value;const cnt=l=>ROWS.filter(r=>r.lvl===l).length;const unit=ROWS.reduce((s,r)=>s+r.ext,0);
+  const health=ROWS.length?Math.round(100-ROWS.reduce((s,r)=>s+r.score,0)/ROWS.length):0;
+  $('kpi').innerHTML=`<div>BOM health<b class="${health>=75?'L':health>=50?'M':'H'}">${health}/100</b></div><div>High risk<b class=H>${cnt('H')}</b></div><div>Medium<b class=M>${cnt('M')}</b></div><div>Low<b class=L>${cnt('L')}</b></div><div>Cost / unit<b>${unit.toFixed(2)}</b></div><div>Build cost (${build})<b>${(unit*build).toLocaleString(undefined,{maximumFractionDigits:0})}</b></div>`;
+  const rows=ROWS.filter(r=>!f||r.lvl===f).sort((a,b)=>{const x=a[sortK],y=b[sortK];return(typeof x==='number'||x===null?(x??-1)-(y??-1):String(x).localeCompare(String(y),undefined,{numeric:true}))*sortD});
+  $('tb').innerHTML=rows.map(r=>`<tr><td><span class="score s${r.lvl}">${r.score}</span></td><td><b>${esc(r.part_number)}</b><br><span class=note>${esc(r.manufacturer)}</span></td><td>${esc(r.description)}</td><td>${esc(r.lifecycle||'?')}</td><td>${esc(r.sources||'?')}</td>
+  <td>${r.cov===null?'?':r.cov===Infinity?'&infin;':r.cov.toFixed(1)+'&times;'}</td><td>${r.lead===null?'?':r.lead+' wk'}</td><td>RoHS ${esc(r.rohs||'?')} &middot; REACH ${esc(r.reach||'?')}</td><td>${r.ext.toFixed(2)}</td><td>${r.why.map(w=>`<span class=chip>${esc(w)}</span>`).join('')}</td><td>${links(r.part_number)}</td></tr>`).join('');
+}
+document.querySelectorAll('th[data-s]').forEach(th=>th.onclick=()=>{const k=th.dataset.s;sortD=sortK===k?-sortD:-1;sortK=k;draw()});
+$('go').onclick=()=>{localStorage.setItem('bom_hc',$('csv').value);analyze()};['build','lt'].forEach(i=>$(i).addEventListener('input',analyze));$('flt').onchange=draw;
+$('exp').onclick=()=>{const csv='part_number,manufacturer,risk_score,risk_level,reasons,ext_cost\n'+ROWS.map(r=>[r.part_number,r.manufacturer,r.score,{H:'High',M:'Medium',L:'Low'}[r.lvl],r.why.join('; '),r.ext.toFixed(2)].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='bom-risk.csv';a.click()};
+$('csv').value=localStorage.getItem('bom_hc')||SAMPLE;analyze();
+</script>
+</body>
+</html>
