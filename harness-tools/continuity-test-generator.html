@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Continuity Test Program Generator</title>
+<meta name="description" content="Convert a harness wire list into nets, test-point maps, a DIY Arduino continuity tester sketch and a pass/fail result checker.">
+<style>
+:root{--bg:#0f1419;--panel:#172029;--line:#2a3743;--text:#e6edf3;--mut:#8b9bab;--acc:#f59e0b;--ok:#22c55e;--bad:#ef4444;--warn:#eab308}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px}header a{color:var(--mut);text-decoration:none}
+h1{font-size:20px;margin:0}h2{font-size:15px;margin:0 0 12px}main{max-width:1250px;margin:0 auto;padding:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+label{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}
+input,select,textarea{width:100%;background:#0b1015;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit}
+textarea{font-family:ui-monospace,monospace;font-size:12px}
+button{background:var(--acc);color:#111;border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer}button.sec{background:#2a3743;color:var(--text)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}@media(max-width:900px){.two{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--mut);font-weight:500}
+.note{font-size:12px;color:var(--mut)}.ok{color:var(--ok);font-weight:700}.bad{color:var(--bad);font-weight:700}.warn{color:var(--warn)}
+pre{background:#0b1015;border:1px solid var(--line);border-radius:6px;padding:12px;overflow:auto;max-height:420px;font-size:12px}
+.chip{display:inline-block;background:#2a3743;border-radius:4px;padding:1px 6px;margin:1px;font-family:ui-monospace,monospace;font-size:12px}
+</style>
+</head>
+<body>
+<header><a href="index.html">&larr; Harness Tools</a><h1>Continuity Test Program Generator</h1></header>
+<main>
+<div class="card"><h2>Wire list (CSV)</h2><p class="note">Columns: <code>wire,from,from_pin,to,to_pin</code>. Splices can be listed as their own connectors (for example SP1), and they are merged into nets without becoming test points.</p>
+<textarea id="csv" rows="9"></textarea>
+<div class="grid" style="margin-top:12px">
+<div><label>Exclude from test points (regex)</label><input id="ex" value="^SP"></div>
+<div><label>Tester board</label><select id="board"><option value="uno">Arduino Uno / Nano (18 points)</option><option value="mega" selected>Arduino Mega 2560 (66 points)</option><option value="custom">Custom pin list</option></select></div>
+<div><label>Custom pin list</label><input id="pins" placeholder="2,3,4,5,22-53"></div>
+<div style="align-self:end"><button id="go" style="width:100%">Generate</button></div></div></div>
+<div class="two">
+<div class="card"><h2>Expected nets <span class="note" id="netSum"></span></h2><table><thead><tr><th>Net</th><th>Test points</th></tr></thead><tbody id="nets"></tbody></table></div>
+<div class="card"><h2>Test-point map</h2><table><thead><tr><th>TP</th><th>Cavity</th><th>Net</th><th>Tester pin</th></tr></thead><tbody id="tps"></tbody></table><div style="margin-top:10px"><button class="sec" id="exCsv">Export netlist CSV</button> <button class="sec" id="exJson">Export JSON</button></div></div>
+</div>
+<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">DIY tester sketch (Arduino)</h2><div><button class="sec" id="copy">Copy</button> <button class="sec" id="dlIno">Download .ino</button></div></div>
+<p class="note">Wire each test point to its tester pin through a mating connector on the fixture. The sketch drives one point LOW at a time while the others sit on internal pull-ups, then reports OPEN, SHORT and PASS or FAIL over serial at 115200 baud. This is a low-voltage continuity check only, so use a hipot tester for insulation resistance.</p><pre id="ino"></pre></div>
+<div class="card"><h2>Result checker</h2><p class="note">Paste the connections a tester found, one pair per line, for example <code>J1:1-J2:1</code>, <code>PAIR J1:1-J2:1</code> (the sketch output), or <code>TP3-TP7</code>.</p>
+<textarea id="meas" rows="6"></textarea><div style="margin-top:8px"><button id="check">Compare to expected</button></div><div id="res" style="margin-top:12px"></div></div>
+</main>
+<script>
+const SAMPLE=`wire,from,from_pin,to,to_pin
+W1,J1,1,J2,1
+W2,J1,2,J2,2
+W3,J1,3,SP1,1
+W4,SP1,1,J2,3
+W5,SP1,1,J3,1
+W6,J1,4,J3,2
+W7,J2,4,J3,4`;
+const $=id=>document.getElementById(id);
+function parseCSV(t){const L=t.trim().split(/\r?\n/).map(l=>l.split(/[,\t;]/).map(x=>x.trim().replace(/^"|"$/g,'')));const h=L.shift().map(x=>x.toLowerCase());return L.filter(r=>r.length>1).map(r=>Object.fromEntries(h.map((k,i)=>[k,r[i]||''])))}
+const BOARDS={uno:'2-13,14-19',mega:'2-53,54-69'};
+function pinList(s){const o=[];s.split(',').forEach(p=>{p=p.trim();if(!p)return;const m=p.match(/^(\d+)-(\d+)$/);if(m)for(let i=+m[1];i<=+m[2];i++)o.push(i);else if(!isNaN(+p))o.push(+p)});return o}
+let TP=[],NETS=[],NAME2TP={};
+function gen(){
+  const W=parseCSV($('csv').value),ex=new RegExp($('ex').value||'^$','i');
+  const parent={},find=x=>parent[x]===x?x:(parent[x]=find(parent[x])),uni=(a,b)=>{parent[a]??=a;parent[b]??=b;parent[find(a)]=find(b)};
+  const nodes=[];W.forEach(w=>{const a=`${w.from}:${w.from_pin}`,b=`${w.to}:${w.to_pin}`;[a,b].forEach(n=>{if(!(n in parent)){parent[n]=n;nodes.push(n)}});uni(a,b)});
+  const tpNodes=nodes.filter(n=>!ex.test(n.split(':')[0])).sort((a,b)=>{const[ca,pa]=a.split(':'),[cb,pb]=b.split(':');return ca.localeCompare(cb,undefined,{numeric:true})||pa.localeCompare(pb,undefined,{numeric:true})});
+  const roots={};NETS=[];tpNodes.forEach(n=>{const r=find(n);if(!(r in roots)){roots[r]=NETS.length;NETS.push([])}NETS[roots[r]].push(n)});
+  const pins=pinList($('board').value==='custom'?$('pins').value:BOARDS[$('board').value]);
+  TP=tpNodes.map((n,i)=>({tp:i+1,name:n,net:roots[find(n)],pin:pins[i]}));NAME2TP={};TP.forEach(t=>NAME2TP[t.name]=t);
+  const singles=NETS.filter(n=>n.length<2).length;
+  $('netSum').textContent=`${NETS.length} nets · ${TP.length} test points · ${TP.length*(TP.length-1)/2} pairs checked`+(singles?` · ${singles} single-point nets`:'');
+  $('nets').innerHTML=NETS.map((n,i)=>`<tr><td>N${i+1}</td><td>${n.map(x=>`<span class=chip>${x}</span>`).join('')}${n.length<2?' <span class=warn>single point, isolation only</span>':''}</td></tr>`).join('');
+  $('tps').innerHTML=TP.map(t=>`<tr><td>TP${t.tp}</td><td>${t.name}</td><td>N${t.net+1}</td><td>${t.pin??'<span class=bad>no pin</span>'}</td></tr>`).join('');
+  const short=TP.length>pins.length;
+  $('ino').textContent=(short?`// WARNING: ${TP.length} test points but only ${pins.length} tester pins. Use a bigger board or multiplexers.\n`:'')+sketch(TP.filter(t=>t.pin!=null));
+}
+function sketch(T){
+  return `// Auto-generated continuity tester for ${T.length} test points
+// Fixture: connect each test point to the Arduino pin listed. Common ground is not required.
+const uint8_t N = ${T.length};
+const uint8_t PINS[N] = {${T.map(t=>t.pin).join(', ')}};
+const uint8_t NET[N]  = {${T.map(t=>t.net).join(', ')}};
+const char* const NAMES[N] = {${T.map(t=>`"${t.name}"`).join(', ')}};
+
+void setup() {
+  Serial.begin(115200);
+  for (uint8_t i = 0; i < N; i++) pinMode(PINS[i], INPUT_PULLUP);
+}
+
+void loop() {
+  Serial.println(F("Send any character to start a test..."));
+  while (!Serial.available()) {}
+  while (Serial.available()) Serial.read();
+  uint16_t errors = 0;
+  for (uint8_t i = 0; i < N; i++) {
+    pinMode(PINS[i], OUTPUT);
+    digitalWrite(PINS[i], LOW);
+    delayMicroseconds(200);
+    for (uint8_t j = i + 1; j < N; j++) {
+      bool found = digitalRead(PINS[j]) == LOW;
+      bool expected = NET[i] == NET[j];
+      if (found) { Serial.print(F("PAIR ")); Serial.print(NAMES[i]); Serial.print('-'); Serial.println(NAMES[j]); }
+      if (found != expected) {
+        errors++;
+        Serial.print(expected ? F("OPEN  ") : F("SHORT "));
+        Serial.print(NAMES[i]); Serial.print(F(" <-> ")); Serial.println(NAMES[j]);
+      }
+    }
+    pinMode(PINS[i], INPUT_PULLUP);
+  }
+  Serial.print(F("RESULT: ")); Serial.print(errors ? F("FAIL (") : F("PASS (")); Serial.print(errors); Serial.println(F(" errors)"));
+}
+`}
+function check(){
+  if(!TP.length)gen();const found=new Set(),bad=[];
+  $('meas').value.split(/\r?\n/).forEach(l=>{l=l.replace(/^PAIR\s+/i,'').trim();if(!l)return;const m=l.match(/^(.+?)\s*(?:<->|-(?=[A-Za-z]|TP)|,|\s)\s*(.+)$/);if(!m){bad.push(l);return}
+    const rs=x=>{x=x.trim();const t=x.match(/^TP(\d+)$/i);return t?TP[+t[1]-1]:NAME2TP[x]};const a=rs(m[1]),b=rs(m[2]);if(!a||!b){bad.push(l);return}found.add([a.tp,b.tp].sort((x,y)=>x-y).join('-'))});
+  const opens=[],shorts=[];
+  for(let i=0;i<TP.length;i++)for(let j=i+1;j<TP.length;j++){const k=TP[i].tp+'-'+TP[j].tp,e=TP[i].net===TP[j].net,f=found.has(k);if(e&&!f)opens.push([TP[i],TP[j]]);if(!e&&f)shorts.push([TP[i],TP[j]])}
+  const li=a=>a.map(([x,y])=>`<span class=chip>${x.name}</span> &harr; <span class=chip>${y.name}</span>`).join('<br>');
+  $('res').innerHTML=`<div style="font-size:22px" class="${opens.length||shorts.length?'bad':'ok'}">${opens.length||shorts.length?'FAIL':'PASS'}</div>
+  <div class=two style="margin-top:10px"><div><b>Opens (${opens.length})</b><br>${li(opens)||'<span class=note>none</span>'}</div><div><b>Shorts / miswires (${shorts.length})</b><br>${li(shorts)||'<span class=note>none</span>'}</div></div>
+  ${bad.length?`<p class=warn>Could not parse ${bad.length} line(s): ${bad.slice(0,5).join('; ')}</p>`:''}`;
+}
+const dl=(n,d,t)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([d],{type:t}));a.download=n;a.click()};
+$('exCsv').onclick=()=>dl('netlist.csv','tp,cavity,net,tester_pin\n'+TP.map(t=>`TP${t.tp},${t.name},N${t.net+1},${t.pin??''}`).join('\n'),'text/csv');
+$('exJson').onclick=()=>dl('netlist.json',JSON.stringify({nets:NETS.map((n,i)=>({net:'N'+(i+1),points:n})),testPoints:TP},null,2),'application/json');
+$('dlIno').onclick=()=>dl('harness_tester.ino',$('ino').textContent,'text/plain');
+$('copy').onclick=()=>navigator.clipboard.writeText($('ino').textContent);
+$('go').onclick=gen;$('check').onclick=check;
+$('csv').value=SAMPLE;$('meas').value='PAIR J1:1-J2:1\nPAIR J1:2-J2:2\nPAIR J1:3-J2:3\nPAIR J1:3-J3:1\nPAIR J2:3-J3:1\nPAIR J2:4-J3:4\nPAIR J1:4-J2:4';gen();check();
+</script>
+</body>
+</html>

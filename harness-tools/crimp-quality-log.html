@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crimp Quality Log (Crimp Height, Pull Test, Cpk)</title>
+<meta name="description" content="Log crimp height and pull tests per terminal and tool, check against IPC/WHMA-A-620 style limits and track Cpk.">
+<style>
+:root{--bg:#0f1419;--panel:#172029;--line:#2a3743;--text:#e6edf3;--mut:#8b9bab;--acc:#f59e0b;--ok:#22c55e;--bad:#ef4444;--warn:#eab308}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px}header a{color:var(--mut);text-decoration:none}
+h1{font-size:20px;margin:0}h2{font-size:15px;margin:0 0 12px}main{max-width:1250px;margin:0 auto;padding:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+label{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}
+input,select,textarea{width:100%;background:#0b1015;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px;font:inherit}
+button{background:var(--acc);color:#111;border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer}button.sec{background:#2a3743;color:var(--text)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--mut);font-weight:500}
+td input{padding:4px}.x{background:transparent;color:var(--bad);padding:2px 8px}.note{font-size:12px;color:var(--mut)}
+.pass{color:var(--ok);font-weight:700}.fail{color:var(--bad);font-weight:700}.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:10px}.kpi div{background:#0b1015;border-radius:8px;padding:10px}.kpi b{display:block;font-size:20px}
+</style>
+</head>
+<body>
+<header><a href="index.html">&larr; Harness Tools</a><h1>Crimp Quality Log</h1></header>
+<main>
+<div class="card"><h2>Terminal crimp specifications</h2>
+<table><thead><tr><th>Spec ID</th><th>Terminal P/N</th><th>AWG</th><th>Crimp height nominal (mm)</th><th>&plusmn; tol (mm)</th><th>Min pull (N)</th><th></th></tr></thead><tbody id="specs"></tbody></table>
+<div style="margin-top:8px;display:flex;gap:8px"><button class="sec" id="addS">+ Add spec</button></div>
+<p class="note">When you change the AWG, the minimum pull force fills in from typical IPC/WHMA-A-620 / UL 486A values. Overwrite it with the terminal maker's spec when one exists, because the applicator spec sheet sets the real crimp-height window.</p></div>
+
+<div class="card"><h2>New inspection</h2><div class="grid">
+<div><label>Spec</label><select id="eSpec"></select></div><div><label>Operator</label><input id="eOp"></div>
+<div><label>Tool / applicator ID</label><input id="eTool" placeholder="APP-0042"></div><div><label>Wire / terminal lot</label><input id="eLot"></div>
+<div><label>Check type</label><select id="eType"><option>First piece</option><option>In-process</option><option>Last piece</option><option>After tool change</option></select></div>
+<div style="grid-column:span 2"><label>Crimp height readings (mm, comma separated)</label><input id="eCH" placeholder="1.52, 1.53, 1.51, 1.52, 1.54"></div>
+<div><label>Pull force (N)</label><input id="ePull" type="number"></div>
+<div><label>Visual (bellmouth, brush, insulation)</label><select id="eVis"><option value="1">Pass</option><option value="0">Fail</option></select></div>
+<div style="grid-column:span 2"><label>Notes</label><input id="eNote"></div></div>
+<div style="margin-top:12px;display:flex;gap:8px;align-items:center"><button id="addE">Record inspection</button><span id="eRes"></span></div></div>
+
+<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h2 style="margin:0">Process capability</h2><select id="sSpec" style="width:auto"></select></div>
+<div class="kpi" id="kpi" style="margin-top:12px"></div><svg id="chart" viewBox="0 0 900 260" style="width:100%"></svg></div>
+
+<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Inspection records</h2><div><button class="sec" id="exp">Export CSV</button> <button class="sec" id="expJ">Backup JSON</button> <label style="display:inline;background:#2a3743;color:var(--text);padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px">Restore JSON<input type="file" id="imp" hidden></label></div></div>
+<table style="margin-top:10px"><thead><tr><th>Time</th><th>Spec</th><th>Type</th><th>Tool</th><th>Operator</th><th>Lot</th><th>CH readings</th><th>Pull</th><th>Visual</th><th>Result</th><th></th></tr></thead><tbody id="recs"></tbody></table></div>
+</main>
+<script>
+const PULL={30:7,28:9,26:31,24:44,22:67,20:85,18:169,16:222,14:311,12:489,10:667,8:1001};
+const $=id=>document.getElementById(id);
+let DB=JSON.parse(localStorage.getItem('cql')||'null')||{specs:[{id:'S1',pn:'0462-201-16141',awg:18,ch:1.55,tol:0.05,pull:169},{id:'S2',pn:'43030-0007',awg:22,ch:0.85,tol:0.03,pull:67}],recs:[
+  {ts:'2026-01-05T08:02:00Z',spec:'S1',type:'First piece',tool:'APP-0042',op:'Demo',lot:'L100',ch:[1.54,1.55,1.56,1.55,1.54],pull:'212',vis:'1',note:'demo data',ok:true,why:''},
+  {ts:'2026-01-05T11:30:00Z',spec:'S1',type:'In-process',tool:'APP-0042',op:'Demo',lot:'L100',ch:[1.56,1.55,1.57,1.56,1.55],pull:'205',vis:'1',note:'demo data',ok:true,why:''},
+  {ts:'2026-01-05T15:45:00Z',spec:'S1',type:'Last piece',tool:'APP-0042',op:'Demo',lot:'L100',ch:[1.57,1.58,1.61,1.57,1.58],pull:'198',vis:'1',note:'demo data',ok:false,why:'crimp height'}]};
+const save=()=>localStorage.setItem('cql',JSON.stringify(DB));
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function drawSpecs(){
+  $('specs').innerHTML=DB.specs.map((s,i)=>`<tr>${['id','pn','awg','ch','tol','pull'].map(k=>`<td><input data-i=${i} data-k=${k} value="${esc(s[k])}" ${k!='id'&&k!='pn'?'type=number step=any':''}></td>`).join('')}<td><button class=x data-d=${i}>&times;</button></td></tr>`).join('');
+  const opts=DB.specs.map(s=>`<option value="${esc(s.id)}">${esc(s.id)} - ${esc(s.pn)} (${s.awg} AWG)</option>`).join('');$('eSpec').innerHTML=opts;const v=$('sSpec').value;$('sSpec').innerHTML=opts;if(v)$('sSpec').value=v;
+}
+$('specs').onchange=e=>{const d=e.target.dataset;if(d.i==null)return;const s=DB.specs[d.i];s[d.k]=['awg','ch','tol','pull'].includes(d.k)?+e.target.value:e.target.value;if(d.k==='awg'&&PULL[s.awg])s.pull=PULL[s.awg];save();drawSpecs();drawAll()};
+$('specs').onclick=e=>{if(e.target.dataset.d!=null&&confirm('Delete this spec?')){DB.specs.splice(+e.target.dataset.d,1);save();drawSpecs();drawAll()}};
+$('addS').onclick=()=>{DB.specs.push({id:'S'+(DB.specs.length+1),pn:'',awg:20,ch:1.0,tol:0.05,pull:PULL[20]});save();drawSpecs()};
+function judge(r,s){if(!s)return{ok:false,why:'spec missing'};const bad=[];const lo=s.ch-s.tol,hi=s.ch+s.tol;
+  if(r.ch.some(v=>v<lo||v>hi))bad.push('crimp height');if(r.pull!==''&&r.pull!=null&&+r.pull<s.pull)bad.push('pull');if(!+r.vis)bad.push('visual');return{ok:!bad.length,why:bad.join(', ')}}
+$('addE').onclick=()=>{const ch=$('eCH').value.split(/[,;\s]+/).map(Number).filter(v=>v>0);if(!ch.length){$('eRes').textContent='Enter at least one crimp height reading.';return}
+  const r={ts:new Date().toISOString(),spec:$('eSpec').value,type:$('eType').value,tool:$('eTool').value,op:$('eOp').value,lot:$('eLot').value,ch,pull:$('ePull').value,vis:$('eVis').value,note:$('eNote').value};
+  const j=judge(r,DB.specs.find(s=>s.id===r.spec));r.ok=j.ok;r.why=j.why;DB.recs.push(r);save();
+  $('eRes').innerHTML=j.ok?'<span class=pass>PASS</span>':`<span class=fail>FAIL</span> <span class=note>(${j.why}). Quarantine the parts since the last good check and adjust the applicator.</span>`;
+  $('eCH').value='';$('ePull').value='';$('eNote').value='';$('sSpec').value=r.spec;drawAll()};
+function drawAll(){
+  $('recs').innerHTML=DB.recs.slice().reverse().map((r,i)=>`<tr><td>${new Date(r.ts).toLocaleString()}</td><td>${esc(r.spec)}</td><td>${esc(r.type)}</td><td>${esc(r.tool)}</td><td>${esc(r.op)}</td><td>${esc(r.lot)}</td><td>${r.ch.join(', ')}</td><td>${esc(r.pull)}</td><td>${+r.vis?'ok':'<span class=fail>fail</span>'}</td><td>${r.ok?'<span class=pass>PASS</span>':`<span class=fail>FAIL</span> <span class=note>${esc(r.why)}</span>`}</td><td><button class=x data-r=${DB.recs.length-1-i}>&times;</button></td></tr>`).join('');
+  const s=DB.specs.find(x=>x.id===$('sSpec').value);if(!s){$('kpi').innerHTML='';$('chart').innerHTML='';return}
+  const rs=DB.recs.filter(r=>r.spec===s.id),xs=rs.flatMap(r=>r.ch),n=xs.length,lsl=s.ch-s.tol,usl=s.ch+s.tol;
+  const mean=n?xs.reduce((a,b)=>a+b,0)/n:0,sd=n>1?Math.sqrt(xs.reduce((a,b)=>a+(b-mean)**2,0)/(n-1)):0;
+  const cp=sd?(usl-lsl)/(6*sd):NaN,cpk=sd?Math.min(usl-mean,mean-lsl)/(3*sd):NaN,fails=rs.filter(r=>!r.ok).length,pulls=rs.map(r=>+r.pull).filter(v=>v>0);
+  const cls=v=>isNaN(v)?'':v>=1.33?'pass':v>=1?'':'fail';
+  $('kpi').innerHTML=`<div>Readings<b>${n}</b></div><div>Mean (mm)<b>${n?mean.toFixed(3):'-'}</b></div><div>Std dev<b>${sd?sd.toFixed(4):'-'}</b></div><div>Cp<b class="${cls(cp)}">${isNaN(cp)?'-':cp.toFixed(2)}</b></div><div>Cpk<b class="${cls(cpk)}">${isNaN(cpk)?'-':cpk.toFixed(2)}</b></div><div>Failed checks<b class="${fails?'fail':''}">${fails} / ${rs.length}</b></div><div>Min pull (N)<b class="${pulls.length&&Math.min(...pulls)<s.pull?'fail':''}">${pulls.length?Math.min(...pulls):'-'}</b></div>`;
+  const W=900,H=260,P=40,lo=Math.min(lsl,...xs)-s.tol*0.5,hi=Math.max(usl,...xs)+s.tol*0.5,y=v=>H-P-(v-lo)/(hi-lo)*(H-2*P),x=i=>P+(n>1?i/(n-1):0.5)*(W-2*P);
+  let g=`<rect width=${W} height=${H} fill="#0b1015" rx="8"/>`;[[usl,'USL','#ef4444'],[s.ch,'NOM','#8b9bab'],[lsl,'LSL','#ef4444']].forEach(([v,t,c])=>g+=`<line x1=${P} x2=${W-P} y1=${y(v)} y2=${y(v)} stroke="${c}" stroke-dasharray="5 4"/><text x=${W-P+4} y=${y(v)+4} fill="${c}" font-size=11>${t} ${v.toFixed(3)}</text>`);
+  if(n){g+=`<polyline fill=none stroke="#f59e0b" stroke-width=1.5 points="${xs.map((v,i)=>x(i)+','+y(v)).join(' ')}"/>`+xs.map((v,i)=>`<circle cx=${x(i)} cy=${y(v)} r=3.5 fill="${v<lsl||v>usl?'#ef4444':'#22c55e'}"/>`).join('')}
+  else g+=`<text x=${W/2} y=${H/2} fill="#8b9bab" text-anchor=middle>No readings for this spec yet</text>`;
+  $('chart').innerHTML=g;
+}
+$('recs').onclick=e=>{if(e.target.dataset.r!=null&&confirm('Delete this record?')){DB.recs.splice(+e.target.dataset.r,1);save();drawAll()}};
+$('sSpec').onchange=drawAll;
+const dl=(name,data,type)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type}));a.download=name;a.click()};
+$('exp').onclick=()=>dl('crimp-log.csv','timestamp,spec,terminal,awg,type,tool,operator,lot,ch_readings,pull_N,visual,result,reason,note\n'+DB.recs.map(r=>{const s=DB.specs.find(x=>x.id===r.spec)||{};return[r.ts,r.spec,s.pn,s.awg,r.type,r.tool,r.op,r.lot,r.ch.join(' '),r.pull,+r.vis?'pass':'fail',r.ok?'PASS':'FAIL',r.why,r.note].map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')}).join('\n'),'text/csv');
+$('expJ').onclick=()=>dl('crimp-log-backup.json',JSON.stringify(DB,null,2),'application/json');
+$('imp').onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);if(!d.specs||!d.recs)throw 0;DB=d;save();drawSpecs();drawAll()}catch(_){alert('That file is not a valid backup.')}})};
+drawSpecs();drawAll();
+</script>
+</body>
+</html>

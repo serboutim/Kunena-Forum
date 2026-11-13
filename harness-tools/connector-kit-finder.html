@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connector Complete-Kit Finder</title>
+<meta name="description" content="Enter a connector housing and get the mating half, terminals, wedge locks, seals, crimp and extraction tools as a BOM.">
+<style>
+:root{--bg:#0f1419;--panel:#172029;--line:#2a3743;--text:#e6edf3;--mut:#8b9bab;--acc:#f59e0b;--ok:#22c55e;--bad:#ef4444;--warn:#eab308}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px}header a{color:var(--mut);text-decoration:none}
+h1{font-size:20px;margin:0}h2{font-size:15px;margin:0 0 12px}main{max-width:1200px;margin:0 auto;padding:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+label{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}
+input,select,textarea{width:100%;background:#0b1015;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit}
+textarea{font-family:ui-monospace,monospace;font-size:12px}
+button{background:var(--acc);color:#111;border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer}button.sec{background:#2a3743;color:var(--text)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--mut);font-weight:500}
+a.l{color:#7cc4f5;font-size:12px;margin-right:8px}.pn{font-family:ui-monospace,monospace;font-weight:600}
+.v{color:var(--warn);font-size:11px;border:1px solid var(--warn);border-radius:4px;padding:0 4px;margin-left:6px}
+.spec{display:flex;gap:18px;flex-wrap:wrap;color:var(--mut);font-size:13px}.spec b{color:var(--text)}
+.note{font-size:12px;color:var(--mut)}.pins{display:flex;flex-wrap:wrap;gap:4px;max-width:420px}.pin{width:26px;height:26px;border-radius:50%;border:2px solid var(--mut);display:grid;place-items:center;font-size:10px}.pin.u{border-color:var(--acc);background:#f59e0b33}
+details summary{cursor:pointer;color:var(--mut)}
+</style>
+</head>
+<body>
+<header><a href="index.html">&larr; Harness Tools</a><h1>Connector Complete-Kit Finder</h1></header>
+<main>
+<div class="card">
+  <div class="grid" style="grid-template-columns:2fr 1fr"><div><label>Search a housing part number or family (for example DT06-4S, 43025-0800, XHP-3, Powerpole)</label><input id="q" placeholder="Part number or family name"></div>
+  <div style="align-self:end"><button id="go" style="width:100%">Find kit</button></div></div>
+  <div class="grid" style="margin-top:14px">
+    <div><label>Family</label><select id="fam"></select></div>
+    <div><label>Positions</label><select id="pos"></select></div>
+    <div><label>Wire gauge (AWG)</label><select id="awg"></select></div>
+    <div><label>Halves</label><select id="side"><option value="both">Both halves (mated pair)</option><option value="pin">Pin side only</option><option value="socket">Socket side only</option></select></div>
+    <div><label>Circuits used</label><input id="used" type="number" min="1"></div>
+    <div><label>Kits to build</label><input id="kits" type="number" value="1" min="1"></div>
+    <div><label>Spare contacts (%)</label><input id="spare" type="number" value="10" min="0"></div>
+  </div>
+</div>
+<div class="card"><div id="spec" class="spec"></div><div id="pinmap" style="margin-top:12px"></div></div>
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Kit BOM</h2><div><button class="sec" id="csv">Export CSV</button> <button class="sec" onclick="window.print()">Print</button></div></div>
+  <table style="margin-top:10px"><thead><tr><th>Qty</th><th>Part number</th><th>Description</th><th>Buy / datasheet</th></tr></thead><tbody id="bom"></tbody></table>
+  <p class="note" id="notes"></p>
+  <p class="note">This is a starter dataset compiled from public catalogs. Items tagged <span class="v">verify</span> have part numbers that vary by plating, color or packaging, so confirm every part number against the manufacturer's current datasheet before you order.</p>
+</div>
+<div class="card">
+  <details><summary>Add or edit your own connector families (saved in this browser)</summary>
+  <p class="note">Templates can use <code>{n}</code> for the position count and <code>{nn}</code> for the zero-padded count. Contacts use <code>awg:[smallest, largest]</code> as AWG numbers, for example <code>[16,20]</code>.</p>
+  <textarea id="custom" rows="14"></textarea>
+  <div style="margin-top:8px;display:flex;gap:8px"><button id="saveC">Save custom families</button><button class="sec" id="exC">Insert example</button></div><div class="note" id="cmsg"></div></details>
+</div>
+</main>
+<script>
+const pad=n=>String(n).padStart(2,'0');
+const evens=(a,b)=>{const r=[];for(let i=a;i<=b;i+=2)r.push(i);return r};const range=(a,b)=>{const r=[];for(let i=a;i<=b;i++)r.push(i);return r};
+const BUILTIN=[
+ {id:'dt',mfr:'TE Deutsch',name:'DT series',match:/^(DT0[46]|W\d+[PS]$)/i,contact:'Size 16',current:'13 A',pitch:'-',seal:'IP68 / IP6K9K',positions:[2,3,4,6,8,12],
+  pin:{label:'Receptacle DT04 (pins)',housing:n=>n>=8?`DT04-${pad(n)}PA`:`DT04-${n}P`,lock:n=>`W${n}P`,contacts:[{pn:'0460-202-16141',awg:[16,20],d:'Pin, solid, nickel, size 16'},{pn:'1060-16-0122',awg:[16,18],d:'Pin, stamped, nickel, size 16'},{pn:'0460-215-16141',awg:[14,14],d:'Pin, solid, nickel, 14 AWG',v:1}]},
+  socket:{label:'Plug DT06 (sockets)',housing:n=>n>=8?`DT06-${pad(n)}SA`:`DT06-${n}S`,lock:n=>`W${n}S`,contacts:[{pn:'0462-201-16141',awg:[16,20],d:'Socket, solid, nickel, size 16'},{pn:'1062-16-0122',awg:[16,18],d:'Socket, stamped, nickel, size 16'},{pn:'0462-209-16141',awg:[14,14],d:'Socket, solid, nickel, 14 AWG',v:1}]},
+  plug:{pn:'114017',d:'Sealing plug for unused size 16 cavities',v:1},
+  tools:[{pn:'HDT-48-00',d:'Hand crimp tool, solid contacts sizes 12/16/20'},{pn:'0411-204-1605',d:'Removal tool, size 16',v:1}],
+  notes:'The 8- and 12-way housings need a keying letter (A, B, C or D), and both halves must use the same letter. Stamped contacts need a different crimp tool from solid contacts.'},
+ {id:'dtm',mfr:'TE Deutsch',name:'DTM series',match:/^(DTM0[46]|WM-?\d)/i,contact:'Size 20',current:'7.5 A',pitch:'-',seal:'IP68',positions:[2,3,4,6,8,12],
+  pin:{label:'Receptacle DTM04 (pins)',housing:n=>n>=8?`DTM04-${pad(n)}PA`:`DTM04-${n}P`,lock:n=>`WM-${n}P`,contacts:[{pn:'0460-202-20141',awg:[20,24],d:'Pin, solid, nickel, size 20'}]},
+  socket:{label:'Plug DTM06 (sockets)',housing:n=>n>=8?`DTM06-${pad(n)}SA`:`DTM06-${n}S`,lock:n=>`WM-${n}S`,contacts:[{pn:'0462-201-20141',awg:[20,24],d:'Socket, solid, nickel, size 20'}]},
+  plug:{pn:'0413-204-2005',d:'Sealing plug, size 20 cavity',v:1},
+  tools:[{pn:'HDT-48-00',d:'Hand crimp tool, solid contacts sizes 12/16/20'},{pn:'0411-240-2005',d:'Removal tool, size 20',v:1}],
+  notes:'Wedge lock part numbers differ between suppliers (WM-xP versus WMxP). Use the 8- and 12-way keying letter rule from the DT series.'},
+ {id:'dtp',mfr:'TE Deutsch',name:'DTP series',match:/^(DTP0[46]|WP-?\d)/i,contact:'Size 12',current:'25 A',pitch:'-',seal:'IP68',positions:[2,4],
+  pin:{label:'Receptacle DTP04 (pins)',housing:n=>`DTP04-${n}P`,lock:n=>`WP-${n}P`,contacts:[{pn:'0460-204-12141',awg:[12,14],d:'Pin, solid, nickel, size 12'}]},
+  socket:{label:'Plug DTP06 (sockets)',housing:n=>`DTP06-${n}S`,lock:n=>`WP-${n}S`,contacts:[{pn:'0462-203-12141',awg:[12,14],d:'Socket, solid, nickel, size 12'}]},
+  plug:{pn:'114018',d:'Sealing plug, size 12 cavity',v:1},
+  tools:[{pn:'HDT-48-00',d:'Hand crimp tool, solid contacts sizes 12/16/20'}],notes:''},
+ {id:'mf3',mfr:'Molex',name:'Micro-Fit 3.0 (dual row)',match:/^(4302[05]|4303[01])/i,contact:'3.00 mm pitch',current:'5 A',pitch:'3.00 mm',seal:'Unsealed',positions:evens(2,24),
+  pin:{label:'Plug 43020 (male terminals)',housing:n=>`43020-${pad(n)}00`,contacts:[{pn:'43031-0007',awg:[20,24],d:'Male crimp terminal, tin'}]},
+  socket:{label:'Receptacle 43025 (female terminals)',housing:n=>`43025-${pad(n)}00`,contacts:[{pn:'43030-0007',awg:[20,24],d:'Female crimp terminal, tin'},{pn:'43030-0001',awg:[18,18],d:'Female crimp terminal, 18 AWG',v:1}]},
+  tools:[{pn:'63819-0000',d:'Hand crimp tool, 20-24 AWG',v:1},{pn:'11-03-0044',d:'Terminal extraction tool',v:1}],notes:'For board mounting, use the matching 43045 or 43650 headers. Gold-plated terminal variants have different part numbers.'},
+ {id:'mf3s',mfr:'Molex',name:'Micro-Fit 3.0 (single row)',match:/^(4364[05])/i,contact:'3.00 mm pitch',current:'5 A',pitch:'3.00 mm',seal:'Unsealed',positions:range(2,12),
+  pin:{label:'Plug 43640 (male terminals)',housing:n=>`43640-${pad(n)}00`,contacts:[{pn:'43031-0007',awg:[20,24],d:'Male crimp terminal, tin'}]},
+  socket:{label:'Receptacle 43645 (female terminals)',housing:n=>`43645-${pad(n)}00`,contacts:[{pn:'43030-0007',awg:[20,24],d:'Female crimp terminal, tin'}]},
+  tools:[{pn:'63819-0000',d:'Hand crimp tool, 20-24 AWG',v:1},{pn:'11-03-0044',d:'Terminal extraction tool',v:1}],notes:''},
+ {id:'mfj',mfr:'Molex',name:'Mini-Fit Jr. (dual row)',match:/^(39-01-|5557|5559|39-00-)/i,contact:'4.20 mm pitch',current:'9 A',pitch:'4.20 mm',seal:'Unsealed',positions:evens(2,24),
+  pin:{label:'Plug 5559 (male terminals)',housing:n=>`5559-${pad(n)}P`,contacts:[{pn:'39-00-0041',awg:[18,24],d:'5558 male crimp terminal, tin',v:1}],hv:1},
+  socket:{label:'Receptacle 5557 (female terminals)',housing:n=>`39-01-2${pad(n)}0`,contacts:[{pn:'39-00-0039',awg:[18,24],d:'5556 female crimp terminal, tin'},{pn:'39-00-0207',awg:[16,16],d:'5556 female terminal, 16 AWG',v:1}]},
+  tools:[{pn:'63819-0900',d:'Hand crimp tool, 16-24 AWG',v:1},{pn:'11-03-0044',d:'Terminal extraction tool',v:1}],notes:'Plug housing part numbers depend on panel-mount ears and color, so pick the exact 5559 variant on the Molex website.'},
+ {id:'xh',mfr:'JST',name:'XH series',match:/^(XHP-|SXH-|B\d+B-XH)/i,contact:'2.50 mm pitch',current:'3 A',pitch:'2.50 mm',seal:'Unsealed',positions:range(2,16),
+  pin:{label:'PCB header (top entry)',housing:n=>`B${n}B-XH-A`,contacts:[],hv:1},
+  socket:{label:'Wire housing XHP',housing:n=>`XHP-${n}`,contacts:[{pn:'SXH-001T-P0.6',awg:[22,28],d:'Crimp socket contact',v:1}]},
+  tools:[{pn:'WC-240',d:'JST hand crimp tool for XH',v:1}],notes:'Headers are board-mounted, so only the wire side needs terminals.'},
+ {id:'ph',mfr:'JST',name:'PH series',match:/^(PHR-|SPH-|B\d+B-PH)/i,contact:'2.00 mm pitch',current:'2 A',pitch:'2.00 mm',seal:'Unsealed',positions:range(2,16),
+  pin:{label:'PCB header (top entry)',housing:n=>`B${n}B-PH-K-S`,contacts:[],hv:1},
+  socket:{label:'Wire housing PHR',housing:n=>`PHR-${n}`,contacts:[{pn:'SPH-002T-P0.5S',awg:[24,30],d:'Crimp socket contact'}]},
+  tools:[{pn:'WC-240',d:'JST hand crimp tool for PH',v:1}],notes:''},
+ {id:'pp',mfr:'Anderson Power',name:'Powerpole PP15/30/45',match:/^(powerpole|pp\d|1327|133[012])/i,contact:'Genderless',current:'15 / 30 / 45 A',pitch:'-',seal:'Unsealed',positions:[1,2,3,4],genderless:1,
+  pin:{label:'Housing (genderless)',housing:n=>`1327 (red) / 1327G6 (black) x ${n}`,contacts:[{pn:'1331',awg:[16,20],d:'15 A contact'},{pn:'1332',awg:[12,16],d:'30 A contact'},{pn:'1330',awg:[10,14],d:'45 A contact',v:1}]},
+  socket:null,tools:[{pn:'1309G4',d:'TRIcrimp hand crimp tool',v:1}],notes:'Housings are genderless and stack with dovetails. The usual orientation is red on the right, hood up, contacts facing you.'}
+];
+let CUSTOM=[];try{CUSTOM=JSON.parse(localStorage.getItem('ckf_custom')||'[]')}catch(e){}
+const fillT=(t,n)=>typeof t==='function'?t(n):String(t).replace(/\{nn\}/g,pad(n)).replace(/\{n\}/g,n);
+const FAMS=()=>[...BUILTIN,...CUSTOM.map(c=>({...c,match:c.match?new RegExp(c.match,'i'):null}))];
+const $=id=>document.getElementById(id);
+function fillFams(){$('fam').innerHTML=FAMS().map(f=>`<option value="${f.id}">${f.mfr} - ${f.name}</option>`).join('')}
+function fam(){return FAMS().find(f=>f.id===$('fam').value)}
+function onFam(keepPos){
+  const f=fam();$('pos').innerHTML=f.positions.map(p=>`<option>${p}</option>`).join('');if(keepPos&&f.positions.includes(+keepPos))$('pos').value=keepPos;
+  const aw=new Set();['pin','socket'].forEach(s=>f[s]&&f[s].contacts.forEach(c=>{for(let g=c.awg[0];g<=c.awg[1];g++)aw.add(g)}));
+  const list=[...aw].sort((a,b)=>a-b);$('awg').innerHTML=list.map(g=>`<option>${g}</option>`).join('');
+  const first=(f.pin&&f.pin.contacts[0])||(f.socket&&f.socket.contacts[0]);if(first)$('awg').value=first.awg[0];$('used').value=$('pos').value;build();
+}
+const links=pn=>{const q=encodeURIComponent(pn.split(' ')[0]);return `<a class=l target=_blank href="https://www.digikey.com/en/products/result?keywords=${q}">Digi-Key</a><a class=l target=_blank href="https://www.mouser.com/c/?q=${q}">Mouser</a><a class=l target=_blank href="https://octopart.com/search?q=${q}">Octopart</a>`};
+let BOM=[];
+function build(){
+  const f=fam(),n=+$('pos').value,g=+$('awg').value,kits=+$('kits').value||1,spare=(+$('spare').value||0)/100,used=Math.min(+$('used').value||n,n);
+  const sides=f.genderless?['pin']:$('side').value==='both'?['pin','socket']:[$('side').value];
+  BOM=[];const add=(q,pn,d,v)=>{const e=BOM.find(b=>b.pn===pn);if(e)e.q+=q;else BOM.push({q,pn,d,v})};
+  sides.forEach(s=>{const h=f[s];if(!h)return;add(kits,fillT(h.housing,n),h.label+`, ${n} positions`,h.hv);
+    if(h.lock)add(kits,fillT(h.lock,n),'Secondary lock (wedge lock / TPA)');
+    const c=h.contacts.find(c=>g>=c.awg[0]&&g<=c.awg[1]);
+    if(h.contacts.length){if(c)add(Math.ceil(used*kits*(1+spare)),c.pn,c.d+` (${c.awg[0]}-${c.awg[1]} AWG)`,c.v);else add(0,'NO MATCH',`No ${s} contact for ${g} AWG in this family`,1);}
+    if(f.plug&&used<n)add((n-used)*kits,f.plug.pn,f.plug.d,f.plug.v);
+  });
+  (f.tools||[]).forEach(t=>add(1,t.pn,t.d,t.v));
+  $('bom').innerHTML=BOM.map(b=>`<tr><td>${b.q}</td><td class=pn>${b.pn}${b.v?'<span class=v>verify</span>':''}</td><td>${b.d}</td><td>${b.pn==='NO MATCH'?'':links(b.pn)}</td></tr>`).join('');
+  $('spec').innerHTML=`<span>Family <b>${f.mfr} ${f.name}</b></span><span>Contact <b>${f.contact}</b></span><span>Rating <b>${f.current}</b></span><span>Pitch <b>${f.pitch}</b></span><span>Sealing <b>${f.seal}</b></span>`;
+  $('pinmap').innerHTML='<div class=note style="margin-bottom:6px">Cavity map: orange cavities are populated, the rest need sealing plugs if the connector is sealed.</div><div class=pins>'+range(1,n).map(i=>`<div class="pin ${i<=used?'u':''}">${i}</div>`).join('')+'</div>';
+  $('notes').textContent=f.notes||'';
+}
+function search(){
+  const q=$('q').value.trim();if(!q)return;const F=FAMS();
+  let f=F.find(f=>f.match&&f.match.test(q))||F.find(f=>(f.mfr+' '+f.name).toLowerCase().includes(q.toLowerCase()));
+  if(!f){$('notes').innerHTML=`No match in the dataset. Search distributors: ${links(q)}`;return}
+  $('fam').value=f.id;let n=null;
+  const m=q.match(/^DT[MP]?0[46]-0?(\d+)/i)||q.match(/^W[MP]?-?(\d+)[PS]/i)||q.match(/^(?:XHP|PHR)-(\d+)/i)||q.match(/^B(\d+)B-/i)||q.match(/^43(?:02[05]|64[05])-(\d\d)00/)||q.match(/^39-01-2(\d\d)0/);
+  if(m)n=+m[1];
+  onFam(n);
+}
+$('go').onclick=search;$('q').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
+$('fam').onchange=()=>onFam();$('pos').onchange=()=>{$('used').value=$('pos').value;build()};
+['awg','side','used','kits','spare'].forEach(i=>$(i).addEventListener('input',build));
+$('csv').onclick=()=>{const csv='qty,part_number,description,verify\n'+BOM.map(b=>[b.q,b.pn,b.d,b.v?'yes':''].map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='connector-kit.csv';a.click()};
+const EX=[{id:'my-superseal',mfr:'TE',name:'Superseal 1.5 (my data)',match:'^SUPERSEAL',contact:'1.5 mm',current:'14 A',pitch:'-',seal:'IP67',positions:[1,2,3,4,5,6],
+  pin:{label:'Tab housing',housing:'SUPERSEAL-TAB-{n}',contacts:[{pn:'MY-TAB-PN',awg:[16,20],d:'Tab contact'}]},socket:{label:'Receptacle housing',housing:'SUPERSEAL-REC-{n}',contacts:[{pn:'MY-REC-PN',awg:[16,20],d:'Receptacle contact'}]},
+  tools:[{pn:'MY-TOOL',d:'Crimp tool'}],notes:'Replace these placeholders with real part numbers.'}];
+$('custom').value=JSON.stringify(CUSTOM,null,2);
+$('exC').onclick=()=>{$('custom').value=JSON.stringify(EX,null,2)};
+$('saveC').onclick=()=>{try{const v=JSON.parse($('custom').value);if(!Array.isArray(v))throw Error('Must be a JSON array');CUSTOM=v;localStorage.setItem('ckf_custom',JSON.stringify(v));fillFams();onFam();$('cmsg').textContent='Saved '+v.length+' custom families.'}catch(e){$('cmsg').textContent='Error: '+e.message}};
+fillFams();onFam();
+</script>
+</body>
+</html>

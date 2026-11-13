@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wire Gauge, Voltage Drop &amp; Ampacity Calculator</title>
+<meta name="description" content="Size harness wires by voltage drop and ampacity with bundle and temperature derating. AWG and metric mm².">
+<style>
+:root{--bg:#0f1419;--panel:#172029;--line:#2a3743;--text:#e6edf3;--mut:#8b9bab;--acc:#f59e0b;--ok:#22c55e;--bad:#ef4444;--warn:#eab308}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px}header a{color:var(--mut);text-decoration:none}
+h1{font-size:20px;margin:0}h2{font-size:15px;margin:0 0 12px}main{max-width:1200px;margin:0 auto;padding:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+label{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}
+input,select,textarea{width:100%;background:#0b1015;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit}
+button{background:var(--acc);color:#111;border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer}button.sec{background:#2a3743;color:var(--text)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--mut);font-weight:500}
+.big{font-size:30px;font-weight:700}.mut{color:var(--mut)}.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+tr.rec{background:rgba(245,158,11,.14)}.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.note{font-size:12px;color:var(--mut)}
+@media print{header,.noprint{display:none}body{background:#fff;color:#000}.card{border:1px solid #ccc;background:#fff}}
+</style>
+</head>
+<body>
+<header><a href="index.html">&larr; Harness Tools</a><h1>Wire Gauge &middot; Voltage Drop &middot; Ampacity</h1></header>
+<main>
+<div class="card noprint">
+  <h2>Circuit</h2>
+  <div class="grid">
+    <div><label>Application preset</label><select id="preset">
+      <option value="general">General / industrial</option>
+      <option value="auto">Automotive (SAE J1128, XLPE 125&deg;C)</option>
+      <option value="marine_c">Marine critical (ABYC E-11, 3% drop)</option>
+      <option value="marine_n">Marine non-critical (ABYC E-11, 10% drop)</option>
+      <option value="aero">Aerospace (M22759, 150&deg;C)</option>
+    </select></div>
+    <div><label>Load current (A)</label><input id="I" type="number" value="15" step="0.1" min="0"></div>
+    <div><label>System voltage (V)</label><input id="V" type="number" value="12" step="0.1" min="0"></div>
+    <div><label>One-way length</label><input id="L" type="number" value="4" step="0.1" min="0"></div>
+    <div><label>Length unit</label><select id="LU"><option value="m">meters</option><option value="ft">feet</option></select></div>
+    <div><label>Return path</label><select id="ret"><option value="2">Return wire (round trip &times;2)</option><option value="1">Chassis / ground plane (&times;1)</option></select></div>
+    <div><label>Max voltage drop (%)</label><input id="drop" type="number" value="3" step="0.5" min="0.1"></div>
+    <div><label>Conductor</label><select id="mat"><option value="cu">Copper</option><option value="tcu">Tinned copper</option><option value="al">Aluminum</option></select></div>
+    <div><label>Insulation rating (&deg;C)</label><select id="Tins"><option>60</option><option>75</option><option>80</option><option>90</option><option selected>105</option><option>125</option><option>150</option><option>200</option></select></div>
+    <div><label>Ambient temperature (&deg;C)</label><input id="Ta" type="number" value="30"></div>
+    <div><label>Current-carrying wires in bundle</label><input id="n" type="number" value="1" min="1"></div>
+    <div><label>Continuous load (&times;1.25 margin)</label><select id="cont"><option value="1">No</option><option value="1.25">Yes</option></select></div>
+    <div><label>Size series</label><select id="series"><option value="awg">AWG</option><option value="mm">Metric mm&sup2;</option></select></div>
+  </div>
+</div>
+
+<div class="kpis">
+  <div class="card"><div class="mut">Recommended minimum size</div><div class="big" id="recSize">-</div><div class="note" id="recWhy"></div></div>
+  <div class="card"><div class="mut">Voltage drop at recommended size</div><div class="big" id="recDrop">-</div><div class="note" id="recPow"></div></div>
+  <div class="card"><div class="mut">Derating applied</div><div class="big" id="derate">-</div><div class="note" id="derateWhy"></div></div>
+</div>
+
+<div class="card">
+  <h2>All sizes</h2>
+  <table><thead><tr><th>Size</th><th>Area mm&sup2;</th><th>R (m&Omega;/m)</th><th>Drop (V)</th><th>Drop (%)</th><th>Loss (W)</th><th>Derated ampacity (A)</th><th>Status</th></tr></thead><tbody id="tb"></tbody></table>
+  <p class="note">Ampacity is based on single conductors in free air at 30&deg;C, adjusted for insulation rating with &radic;((T<sub>ins</sub>&minus;T<sub>amb</sub>)/(105&minus;30)). Bundle factors follow the NEC 310.15(C)(1) adjustment table. Resistance is calculated at the insulation temperature, which is conservative. Treat these results as engineering estimates and check them against the governing standard (SAE AS50881, ABYC E-11, ISO 6722, NEC) and the wire maker's datasheet.</p>
+</div>
+</main>
+<script>
+const AWG=[["30",30],["28",28],["26",26],["24",24],["22",22],["20",20],["18",18],["16",16],["14",14],["12",12],["10",10],["8",8],["6",6],["4",4],["2",2],["1",1],["1/0",0],["2/0",-1],["3/0",-2],["4/0",-3]];
+const MM=[0.13,0.22,0.35,0.5,0.75,1,1.5,2,2.5,3,4,6,10,16,25,35,50,70,95,120];
+const AMP_REF={30:0.86,28:1.4,26:2.2,24:3.5,22:7,20:11,18:16,16:22,14:32,12:41,10:55,8:73,6:101,4:135,2:181,1:211,0:245,"-1":283,"-2":328,"-3":380};
+const awgArea=n=>{const d=0.127*Math.pow(92,(36-n)/39);return Math.PI/4*d*d};
+const REF=AWG.map(([,n])=>[awgArea(n),AMP_REF[n]]);
+function ampByArea(a){
+  if(a<=REF[0][0])return REF[0][1]*a/REF[0][0];
+  for(let i=1;i<REF.length;i++){if(a<=REF[i][0]){const[a0,i0]=REF[i-1],[a1,i1]=REF[i];const t=Math.log(a/a0)/Math.log(a1/a0);return Math.exp(Math.log(i0)+t*Math.log(i1/i0));}}
+  const[a0,i0]=REF[REF.length-1];return i0*Math.pow(a/a0,0.6);
+}
+const MAT={cu:[0.017241,0.00393],tcu:[0.0176,0.00393],al:[0.0282,0.00403]};
+function bundleFactor(n){if(n<=3)return 1;if(n<=6)return .8;if(n<=9)return .7;if(n<=20)return .5;if(n<=30)return .45;if(n<=40)return .4;return .35}
+const PRESETS={general:{drop:3,Tins:105},auto:{drop:5,Tins:125},marine_c:{drop:3,Tins:105},marine_n:{drop:10,Tins:105},aero:{drop:4,Tins:150}};
+const $=id=>document.getElementById(id);
+$('preset').onchange=()=>{const p=PRESETS[$('preset').value];$('drop').value=p.drop;$('Tins').value=p.Tins;calc()};
+document.querySelectorAll('input,select').forEach(e=>e.addEventListener('input',calc));
+function calc(){
+  const I=+$('I').value,V=+$('V').value,L=(+$('L').value)*($('LU').value==='ft'?0.3048:1)*(+$('ret').value);
+  const maxDrop=+$('drop').value,Tins=+$('Tins').value,Ta=+$('Ta').value,n=+$('n').value||1,Id=I*(+$('cont').value);
+  const[rho,alpha]=MAT[$('mat').value];const matF=$('mat').value==='al'?0.78:1;
+  const tF=Tins>Ta?Math.sqrt((Tins-Ta)/75):0,bF=bundleFactor(n);
+  const sizes=$('series').value==='awg'?AWG.map(([l,g])=>({label:l+' AWG',a:awgArea(g)})):MM.map(a=>({label:a+' mm²',a}));
+  let rec=null,rows='';
+  sizes.forEach(s=>{
+    const r=rho*(1+alpha*(Tins-20))/s.a,vd=I*r*L,pct=V?vd/V*100:0,amp=ampByArea(s.a)*tF*bF*matF;
+    const okD=pct<=maxDrop,okA=amp>=Id,ok=okD&&okA;if(ok&&!rec)rec={...s,vd,pct,amp,loss:I*I*r*L};
+    s.html=`<td>${s.label}</td><td>${s.a.toFixed(3)}</td><td>${(r*1000).toFixed(2)}</td><td>${vd.toFixed(3)}</td><td class="${okD?'':'bad'}">${pct.toFixed(2)}</td><td>${(I*I*r*L).toFixed(2)}</td><td class="${okA?'':'bad'}">${amp.toFixed(1)}</td><td>${ok?'<span class=ok>OK</span>':!okA?'<span class=bad>Over ampacity</span>':'<span class=warn>Drop too high</span>'}</td>`;
+  });
+  sizes.forEach(s=>rows+=`<tr class="${rec&&s.label===rec.label?'rec':''}">${s.html}</tr>`);
+  $('tb').innerHTML=rows;
+  if(rec){$('recSize').textContent=rec.label;$('recWhy').textContent=`Smallest size that meets both the ${maxDrop}% drop limit and the ${Id.toFixed(1)} A design current.`;
+    $('recDrop').textContent=rec.vd.toFixed(2)+' V ('+rec.pct.toFixed(2)+'%)';$('recPow').textContent=`Copper loss ${rec.loss.toFixed(2)} W; derated ampacity ${rec.amp.toFixed(1)} A`;}
+  else{$('recSize').textContent='None';$('recWhy').textContent='No size in this series qualifies. Shorten the run, raise the voltage, or run parallel conductors.';$('recDrop').textContent='-';$('recPow').textContent='';}
+  $('derate').textContent='×'+(tF*bF*matF).toFixed(2);
+  $('derateWhy').textContent=`Temperature ×${tF.toFixed(2)}, bundle (${n} wires) ×${bF}${matF<1?', aluminum ×0.78':''}`;
+}
+calc();
+</script>
+</body>
+</html>

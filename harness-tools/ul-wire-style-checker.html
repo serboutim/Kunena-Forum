@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UL / SAE / MIL Wire Style Checker</title>
+<meta name="description" content="Find UL AWM, SAE J1128, ISO 6722 and M22759 wire types that meet your voltage, temperature and environment requirements.">
+<style>
+:root{--bg:#0f1419;--panel:#172029;--line:#2a3743;--text:#e6edf3;--mut:#8b9bab;--acc:#f59e0b;--ok:#22c55e;--bad:#ef4444;--warn:#eab308}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px}header a{color:var(--mut);text-decoration:none}
+h1{font-size:20px;margin:0}h2{font-size:15px;margin:0 0 12px}main{max-width:1250px;margin:0 auto;padding:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+label{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}label.c{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--text)}label.c input{width:auto}
+input,select{width:100%;background:#0b1015;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--mut);font-weight:500}
+.ok{color:var(--ok);font-weight:700}.bad{color:var(--bad);font-weight:700}.note{font-size:12px;color:var(--mut)}.chip{display:inline-block;font-size:11px;border-radius:4px;padding:0 6px;margin:1px;background:#2a3743}
+.best{background:rgba(34,197,94,.1)}.big{font-size:22px;font-weight:700}
+</style>
+</head>
+<body>
+<header><a href="index.html">&larr; Harness Tools</a><h1>UL / SAE / MIL Wire Style Checker</h1></header>
+<main>
+<div class="card"><h2>Requirements</h2><div class="grid">
+<div><label>Working voltage (V)</label><input id="v" type="number" value="48"></div>
+<div><label>Max conductor temperature (&deg;C)</label><input id="t" type="number" value="90" title="Ambient plus self-heating"></div>
+<div><label>Market / standard family</label><select id="fam"><option value="">Any</option><option>UL AWM</option><option>SAE J1128</option><option>ISO 6722</option><option>SAE AS22759</option></select></div>
+</div>
+<div class="grid" style="margin-top:12px">
+<label class="c"><input type="checkbox" id="f_vw1"> VW-1 flame test</label><label class="c"><input type="checkbox" id="f_oil"> Oil / fuel resistant</label><label class="c"><input type="checkbox" id="f_flex"> High flexibility</label>
+<label class="c"><input type="checkbox" id="f_uv"> Outdoor / UV</label><label class="c"><input type="checkbox" id="f_hf"> Halogen-free</label><label class="c"><input type="checkbox" id="f_thin"> Thin wall / lightweight</label>
+</div></div>
+<div class="card"><h2>Check a specific style</h2><div class="grid"><div><label>Style or type</label><input id="look" placeholder="e.g. 1007, UL1015, TXL, M22759/32"></div><div id="lookRes" style="grid-column:span 3"></div></div></div>
+<div class="card"><h2>Matching wire types <span class="note" id="cnt"></span></h2>
+<table><thead><tr><th>Type</th><th>Standard</th><th>Rating</th><th>Insulation</th><th>Properties</th><th>Typical use</th></tr></thead><tbody id="tb"></tbody></table>
+<p class="note">Ratings are the commonly published values for each style. Individual manufacturers' listings vary (some styles cover several voltage or temperature variants), so confirm the exact listing in UL Product iQ, or the SAE / ISO / MIL specification and the supplier datasheet, before you release a drawing. The properties are typical behaviours of the insulation material, not certified ratings.</p></div>
+</main>
+<script>
+const D=[
+ ['UL1007','UL AWM',300,80,'PVC',['vw1','flex'],'Internal wiring of electronics and appliances'],
+ ['UL1015','UL AWM',600,105,'PVC',['vw1'],'Control panels, appliance and machine wiring'],
+ ['UL1061','UL AWM',300,80,'Semi-rigid PVC',['thin'],'Compact internal wiring'],
+ ['UL1569','UL AWM',300,105,'PVC',['vw1','flex'],'Internal wiring, higher temperature than 1007'],
+ ['UL1430','UL AWM',300,105,'Irradiated XL-PVC',['vw1'],'Solder-iron resistant internal wiring'],
+ ['UL1431','UL AWM',600,105,'Irradiated XL-PVC',['vw1'],'600 V version of 1430'],
+ ['UL10269','UL AWM',1000,105,'PVC',['vw1'],'1000 V equipment wiring, solar and inverter boxes'],
+ ['UL3173','UL AWM',600,125,'XLPE',['vw1','oil','hf'],'Motor leads, appliance wiring'],
+ ['UL3266','UL AWM',300,125,'XLPE',['vw1','oil','hf','thin'],'Internal wiring, oil-exposed areas'],
+ ['UL3135','UL AWM',600,200,'Silicone rubber',['flex','uv','hf'],'Very flexible leads, heaters, test leads'],
+ ['UL3071','UL AWM',600,200,'Silicone rubber + glass braid',['uv','hf'],'Lighting, heating elements'],
+ ['UL3239','UL AWM',30000,150,'Silicone rubber (HV)',['flex','hf'],'High-voltage DC leads (variants rated 3-50 kV)'],
+ ['UL1332','UL AWM',300,200,'FEP',['oil','thin','uv'],'High-temperature, chemical-resistant hookup'],
+ ['UL1180','UL AWM',300,200,'PTFE',['oil','thin','uv'],'High-temperature hookup wire'],
+ ['UL2464','UL AWM',300,80,'PVC jacket (multi-conductor)',['flex'],'Multi-conductor control / signal cable'],
+ ['UL20276','UL AWM',30,80,'PVC jacket (multi-pair)',['flex'],'Low-voltage data cable'],
+ ['TXL','SAE J1128',60,125,'XLPE, thin wall',['oil','hf','thin'],'Automotive and off-highway harnesses, space-limited'],
+ ['GXL','SAE J1128',60,125,'XLPE, general wall',['oil','hf'],'Automotive and engine-compartment harnesses'],
+ ['SXL','SAE J1128',60,125,'XLPE, heavy wall',['oil','hf'],'Abrasion-prone automotive routes'],
+ ['GPT','SAE J1128',60,80,'PVC, general wall',['flex'],'Passenger-compartment automotive wiring'],
+ ['FLRY-B','ISO 6722',60,105,'PVC, thin wall',['oil','thin','flex'],'European automotive harnesses'],
+ ['FLR2X-B','ISO 6722',60,125,'XLPE (halogen-free variants)',['oil','hf','thin'],'Automotive, higher temperature'],
+ ['M22759/16','SAE AS22759',600,150,'ETFE',['oil','uv'],'Aerospace and military airframe wiring'],
+ ['M22759/32','SAE AS22759',600,150,'XL-ETFE, lightweight',['oil','uv','thin'],'Aerospace, weight-critical'],
+ ['M22759/11','SAE AS22759',600,200,'PTFE',['oil','uv','thin'],'Aerospace, high temperature']
+].map(([id,std,V,T,ins,f,use])=>({id,std,V,T,ins,f,use}));
+const FL={vw1:'VW-1',oil:'Oil/fuel',flex:'Flexible',uv:'UV/outdoor',hf:'Halogen-free',thin:'Thin wall'};
+const $=id=>document.getElementById(id);
+const req=()=>({V:+$('v').value||0,T:+$('t').value||0,fam:$('fam').value,flags:Object.keys(FL).filter(k=>$('f_'+k).checked)});
+function verdict(d,r){const fails=[];if(d.V<r.V)fails.push(`voltage ${d.V} V < ${r.V} V`);if(d.T<r.T)fails.push(`temperature ${d.T}°C < ${r.T}°C`);r.flags.forEach(f=>{if(!d.f.includes(f))fails.push(FL[f]+' not typical')});return fails}
+function draw(){
+  const r=req();const m=D.filter(d=>(!r.fam||d.std===r.fam)&&!verdict(d,r).length).sort((a,b)=>(a.T-r.T)-(b.T-r.T)||(a.V-b.V));
+  $('cnt').textContent=`${m.length} of ${D.length}`;
+  $('tb').innerHTML=m.map((d,i)=>`<tr class="${i===0?'best':''}"><td><b>${d.id}</b>${i===0?' <span class=ok>closest fit</span>':''}</td><td>${d.std}</td><td>${d.V>=1000?(d.V/1000)+' kV':d.V+' V'} &middot; ${d.T}&deg;C</td><td>${d.ins}</td><td>${d.f.map(f=>`<span class=chip>${FL[f]}</span>`).join('')}</td><td class=note>${d.use}</td></tr>`).join('')||'<tr><td colspan=6 class=bad>No type in the dataset meets every requirement. Relax a property or look at fluoropolymer or silicone styles.</td></tr>';
+  look();
+}
+function look(){const q=$('look').value.trim().toUpperCase().replace(/\s/g,'');if(!q){$('lookRes').innerHTML='';return}
+  const d=D.find(x=>x.id.toUpperCase()===q||x.id.toUpperCase()==='UL'+q||x.id.toUpperCase().replace('M','')===q.replace(/^M/,''));
+  if(!d){$('lookRes').innerHTML='<span class=note>That style is not in the dataset. Look it up in UL Product iQ.</span>';return}
+  const f=verdict(d,req());$('lookRes').innerHTML=`<div class=big>${d.id} <span class="${f.length?'bad':'ok'}">${f.length?'does not meet':'meets'} requirements</span></div><div class=note>${d.std} · ${d.V} V · ${d.T}°C · ${d.ins}${f.length?' · '+f.join('; '):''}</div>`}
+document.querySelectorAll('input,select').forEach(e=>e.addEventListener('input',draw));draw();
+</script>
+</body>
+</html>

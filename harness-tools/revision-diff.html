@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harness Revision Diff &amp; ECO Report</title>
+<meta name="description" content="Compare two harness wire-list revisions and get a printable ECO change report of added, removed and modified wires.">
+<style>
+:root{--bg:#0f1419;--panel:#172029;--line:#2a3743;--text:#e6edf3;--mut:#8b9bab;--acc:#f59e0b;--ok:#22c55e;--bad:#ef4444;--warn:#eab308}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px}header a{color:var(--mut);text-decoration:none}
+h1{font-size:20px;margin:0}h2{font-size:15px;margin:0 0 12px}main{max-width:1250px;margin:0 auto;padding:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+label{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}
+input,select,textarea{width:100%;background:#0b1015;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit}
+textarea{font-family:ui-monospace,monospace;font-size:12px}
+button{background:var(--acc);color:#111;border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer}button.sec{background:#2a3743;color:var(--text)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}@media(max-width:900px){.two{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--mut);font-weight:500}
+.A{border-left:4px solid var(--ok)}.R{border-left:4px solid var(--bad)}.C{border-left:4px solid var(--warn)}
+del{color:#f87171;text-decoration:line-through}ins{color:#4ade80;text-decoration:none;font-weight:600}
+.kpi{display:flex;gap:12px;flex-wrap:wrap}.kpi div{background:#0b1015;border-radius:8px;padding:10px 16px}.kpi b{display:block;font-size:24px}.note{font-size:12px;color:var(--mut)}
+@media print{header,.noprint{display:none!important}body{background:#fff;color:#000}.card{background:#fff;border:1px solid #ccc}del{color:#b91c1c}ins{color:#15803d}}
+</style>
+</head>
+<body>
+<header><a href="index.html">&larr; Harness Tools</a><h1>Revision Diff &amp; ECO Report</h1></header>
+<main>
+<div class="two noprint">
+<div class="card"><h2>Old revision</h2><input id="ra" value="Rev A" style="margin-bottom:8px"><textarea id="a" rows="11"></textarea></div>
+<div class="card"><h2>New revision</h2><input id="rb" value="Rev B" style="margin-bottom:8px"><textarea id="b" rows="11"></textarea></div>
+</div>
+<div class="card noprint"><div class="grid">
+<div><label>Match wires by</label><select id="key"><option value="id">Wire ID column</option><option value="ends">Endpoints (from:pin / to:pin)</option></select></div>
+<div><label>Wire ID column</label><input id="idc" value="wire"></div>
+<div><label>Ignore columns (comma)</label><input id="ign" placeholder="notes"></div>
+<div><label>Show unchanged</label><select id="unc"><option value="0">No</option><option value="1">Yes</option></select></div>
+<div><label>ECO number</label><input id="eco" value="ECO-0042"></div><div><label>Author</label><input id="au"></div>
+<div style="grid-column:span 2"><label>Reason for change</label><input id="why" value="Add CAN termination, upsize power feed"></div>
+</div><div style="margin-top:12px;display:flex;gap:8px"><button id="go">Compare</button><button class="sec" id="exp">Export change CSV</button><button class="sec" onclick="window.print()">Print ECO</button></div></div>
+<div class="card"><h2 id="title"></h2><p id="meta" class="note"></p><div class="kpi" id="kpi"></div></div>
+<div class="card"><h2>Wire changes</h2><table><thead id="th"></thead><tbody id="tb"></tbody></table></div>
+<div class="card"><h2>Connector impact (rework list)</h2><table><thead><tr><th>Connector</th><th>Cavities affected</th><th>Action</th></tr></thead><tbody id="ci"></tbody></table></div>
+</main>
+<script>
+const A=`wire,from,from_pin,to,to_pin,gauge,color,length_mm
+W1,J1,1,J2,1,18,RD,850
+W2,J1,2,J2,2,18,BK,850
+W3,J1,3,J3,1,20,WH,1200
+W4,J1,4,J3,2,20,GN,1200
+W5,J2,3,J3,3,20,BU,640`;
+const B=`wire,from,from_pin,to,to_pin,gauge,color,length_mm
+W1,J1,1,J2,1,16,RD,850
+W2,J1,2,J2,2,16,BK,850
+W3,J1,3,J3,1,20,WH,1250
+W4,J1,4,J3,2,20,GN,1250
+W6,J3,3,J4,1,20,BU,300
+W7,J3,4,J4,2,20,YE,300`;
+const $=id=>document.getElementById(id);
+function parse(t){const L=t.trim().split(/\r?\n/).map(l=>l.split(/[,\t;]/).map(x=>x.trim().replace(/^"|"$/g,'')));const h=L.shift().map(x=>x.toLowerCase());return{h,rows:L.filter(r=>r.some(Boolean)).map(r=>Object.fromEntries(h.map((k,i)=>[k,r[i]||''])))}}
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let CH=[],COLS=[];
+function go(){
+  const pa=parse($('a').value),pb=parse($('b').value),idc=$('idc').value.toLowerCase(),ign=$('ign').value.toLowerCase().split(',').map(s=>s.trim()).filter(Boolean);
+  const keyOf=r=>$('key').value==='id'?r[idc]:[`${r.from}:${r.from_pin}`,`${r.to}:${r.to_pin}`].sort().join(' | ');
+  COLS=[...new Set([...pa.h,...pb.h])].filter(c=>!ign.includes(c));
+  const ma=new Map(pa.rows.map(r=>[keyOf(r),r])),mb=new Map(pb.rows.map(r=>[keyOf(r),r]));CH=[];
+  new Set([...ma.keys(),...mb.keys()]).forEach(k=>{const a=ma.get(k),b=mb.get(k);
+    if(a&&!b)CH.push({k,s:'R',a});else if(!a&&b)CH.push({k,s:'A',b});else{const diff=COLS.filter(c=>(a[c]||'')!==(b[c]||''));CH.push({k,s:diff.length?'C':'U',a,b,diff})}});
+  const ord={R:0,A:1,C:2,U:3};CH.sort((x,y)=>ord[x.s]-ord[y.s]||String(x.k).localeCompare(String(y.k),undefined,{numeric:true}));
+  const cnt=s=>CH.filter(c=>c.s===s).length;
+  $('title').textContent=`${$('eco').value}: ${$('ra').value} → ${$('rb').value}`;
+  $('meta').textContent=`${$('why').value}${$('au').value?' · Author: '+$('au').value:''} · ${new Date().toLocaleDateString()}`;
+  $('kpi').innerHTML=`<div>Added<b style="color:var(--ok)">${cnt('A')}</b></div><div>Removed<b style="color:var(--bad)">${cnt('R')}</b></div><div>Changed<b style="color:var(--warn)">${cnt('C')}</b></div><div>Unchanged<b>${cnt('U')}</b></div>`;
+  $('th').innerHTML='<tr><th>Change</th>'+COLS.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr>';
+  const lab={A:'Added',R:'Removed',C:'Changed',U:'-'};
+  $('tb').innerHTML=CH.filter(c=>c.s!=='U'||$('unc').value==='1').map(c=>`<tr class=${c.s}><td>${lab[c.s]}</td>${COLS.map(col=>{
+    if(c.s==='A')return `<td><ins>${esc(c.b[col])}</ins></td>`;if(c.s==='R')return `<td><del>${esc(c.a[col])}</del></td>`;
+    return c.diff&&c.diff.includes(col)?`<td><del>${esc(c.a[col])}</del> <ins>${esc(c.b[col])}</ins></td>`:`<td>${esc(c.b[col])}</td>`}).join('')}</tr>`).join('');
+  const imp={};const hit=(r,act)=>{[[r.from,r.from_pin],[r.to,r.to_pin]].forEach(([c,p])=>{if(!c)return;imp[c]=imp[c]||{p:new Set(),a:new Set()};imp[c].p.add(p);imp[c].a.add(act)})};
+  CH.forEach(c=>{if(c.s==='A')hit(c.b,'populate');if(c.s==='R')hit(c.a,'depopulate & plug');if(c.s==='C'){const ends=['from','from_pin','to','to_pin'].some(x=>c.diff.includes(x));hit(c.a,ends?'re-pin':'replace wire');if(ends)hit(c.b,'re-pin')}});
+  const oldC=new Set(pa.rows.flatMap(r=>[r.from,r.to])),newC=new Set(pb.rows.flatMap(r=>[r.from,r.to]));
+  $('ci').innerHTML=Object.entries(imp).sort().map(([c,v])=>`<tr><td><b>${esc(c)}</b>${!oldC.has(c)?' <ins>NEW</ins>':!newC.has(c)?' <del>DELETED</del>':''}</td><td>${[...v.p].sort((x,y)=>x.localeCompare(y,undefined,{numeric:true})).map(esc).join(', ')}</td><td>${[...v.a].join(', ')}</td></tr>`).join('')||'<tr><td colspan=3 class=note>No connector changes</td></tr>';
+}
+$('go').onclick=go;['key','unc','idc','ign'].forEach(i=>$(i).addEventListener('change',go));
+$('exp').onclick=()=>{const csv='change,key,'+COLS.map(c=>c+'_old,'+c+'_new').join(',')+'\n'+CH.filter(c=>c.s!=='U').map(c=>[{A:'added',R:'removed',C:'changed'}[c.s],c.k,...COLS.flatMap(col=>[c.a?c.a[col]:'',c.b?c.b[col]:''])].map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=$('eco').value+'-changes.csv';a.click()};
+$('a').value=A;$('b').value=B;go();
+</script>
+</body>
+</html>

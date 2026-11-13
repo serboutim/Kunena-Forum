@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bundle Diameter &amp; Covering Sizer</title>
+<meta name="description" content="Estimate harness bundle diameter from a wire list and size braided sleeve, split loom, heat shrink and grommets.">
+<style>
+:root{--bg:#0f1419;--panel:#172029;--line:#2a3743;--text:#e6edf3;--mut:#8b9bab;--acc:#f59e0b;--ok:#22c55e;--bad:#ef4444;--warn:#eab308}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px}header a{color:var(--mut);text-decoration:none}
+h1{font-size:20px;margin:0}h2{font-size:15px;margin:0 0 12px}main{max-width:1200px;margin:0 auto;padding:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+label{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}
+input,select,textarea{width:100%;background:#0b1015;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px;font:inherit}
+button{background:var(--acc);color:#111;border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer}button.sec{background:#2a3743;color:var(--text)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--mut);font-weight:500}
+.big{font-size:30px;font-weight:700}.mut{color:var(--mut)}.ok{color:var(--ok)}.bad{color:var(--bad)}.note{font-size:12px;color:var(--mut)}
+.two{display:grid;grid-template-columns:1.4fr 1fr;gap:18px}@media(max-width:900px){.two{grid-template-columns:1fr}}
+td input,td select{padding:5px}.x{background:transparent;color:var(--bad);padding:2px 8px}
+</style>
+</head>
+<body>
+<header><a href="index.html">&larr; Harness Tools</a><h1>Bundle Diameter &amp; Covering Sizer</h1></header>
+<main>
+<div class="two">
+  <div class="card">
+    <h2>Wires in the bundle</h2>
+    <table><thead><tr><th>Qty</th><th>Gauge</th><th>Insulation</th><th>OD (mm)</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+    <div style="margin-top:10px;display:flex;gap:8px"><button id="add">+ Add row</button><button class="sec" id="sample">Load sample</button></div>
+    <div class="grid" style="margin-top:14px">
+      <div><label>Packing</label><select id="ff"><option value="0.8">Tight (taped)</option><option value="0.7" selected>Typical</option><option value="0.6">Loose</option></select></div>
+      <div><label>Largest item to pass through (mm)</label><input id="obj" type="number" value="0" step="0.5" title="Connector or terminal that coverings must slide over; 0 = bundle only"></div>
+    </div>
+    <p class="note">The OD values are typical figures for each insulation type and gauge. Edit the OD cell to use the value from your wire datasheet.</p>
+  </div>
+  <div class="card" style="text-align:center">
+    <div class="mut">Estimated bundle diameter</div><div class="big" id="D">-</div><div class="note" id="Dsub"></div>
+    <svg id="svg" viewBox="-110 -110 220 220" style="width:100%;max-width:340px;margin-top:10px"></svg>
+  </div>
+</div>
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
+  <div class="card"><h2>Expandable braided sleeve</h2><div id="braid"></div></div>
+  <div class="card"><h2>Split convoluted loom</h2><div id="loom"></div></div>
+  <div class="card"><h2>Heat shrink</h2><div id="hs"></div></div>
+  <div class="card"><h2>Grommet / panel hole</h2><div id="grom"></div></div>
+</div>
+</main>
+<script>
+const GAUGES=["26","24","22","20","18","16","14","12","10","8","6","4"];
+const OD={
+ TXL:{26:0.95,24:1.05,22:1.2,20:1.37,18:1.6,16:1.85,14:2.2,12:2.7,10:3.2,8:4.3},
+ GXL:{22:1.5,20:1.8,18:2.03,16:2.29,14:2.64,12:3.1,10:3.68,8:4.9,6:6.1,4:7.4},
+ SXL:{20:2.03,18:2.29,16:2.54,14:2.92,12:3.43,10:3.94,8:5.5,6:6.6,4:8.0},
+ "PVC hookup (UL1007)":{26:1.3,24:1.4,22:1.6,20:1.8,18:2.1,16:2.4},
+ "PVC 600V (UL1015)":{24:2.0,22:2.1,20:2.3,18:2.5,16:2.8,14:3.1,12:3.6,10:4.2,8:5.6},
+ "M22759/32":{26:0.84,24:0.94,22:1.07,20:1.27,18:1.5,16:1.75,14:2.1,12:2.6,10:3.2},
+ "Silicone (UL3135)":{26:1.3,24:1.4,22:1.6,20:1.9,18:2.2,16:2.6,14:3.1,12:3.6,10:4.6,8:6.2},
+ "Battery cable (SGT)":{8:6.4,6:7.4,4:8.6}
+};
+const BRAID=[["1/8\" (3 mm)",2,6],["1/4\" (6 mm)",4,10],["3/8\" (10 mm)",6,15],["1/2\" (13 mm)",8,20],["3/4\" (19 mm)",13,28],["1\" (25 mm)",18,38],["1-1/4\" (32 mm)",25,45],["1-1/2\" (38 mm)",30,55],["2\" (50 mm)",40,75]];
+const LOOM=[["1/8\"",3.2],["3/16\"",4.8],["1/4\"",6.4],["5/16\"",7.9],["3/8\"",9.5],["1/2\"",12.7],["5/8\"",15.9],["3/4\"",19],["1\"",25.4],["1-1/4\"",31.8],["1-1/2\"",38.1],["2\"",50.8]];
+const HS=[["3/64\"",1.2],["1/16\"",1.6],["3/32\"",2.4],["1/8\"",3.2],["3/16\"",4.8],["1/4\"",6.4],["3/8\"",9.5],["1/2\"",12.7],["3/4\"",19],["1\"",25.4],["1-1/2\"",38.1],["2\"",50.8]];
+let rows=[{q:4,g:"18",t:"GXL",od:2.03},{q:2,g:"14",t:"GXL",od:2.64}];
+const $=id=>document.getElementById(id);
+function render(){
+  $('rows').innerHTML=rows.map((r,i)=>`<tr><td><input type=number min=1 value="${r.q}" data-i=${i} data-k=q style="width:64px"></td>
+  <td><select data-i=${i} data-k=g>${GAUGES.map(g=>`<option ${g==r.g?'selected':''}>${g}</option>`).join('')}</select></td>
+  <td><select data-i=${i} data-k=t>${Object.keys(OD).map(t=>`<option ${t==r.t?'selected':''}>${t}</option>`).join('')}</select></td>
+  <td><input type=number step=0.01 value="${r.od}" data-i=${i} data-k=od style="width:80px"></td><td><button class=x data-del=${i}>&times;</button></td></tr>`).join('');
+  calc();
+}
+$('rows').addEventListener('change',e=>{const i=e.target.dataset.i,k=e.target.dataset.k;if(i==null)return;rows[i][k]=k==='q'||k==='od'?+e.target.value:e.target.value;
+  if(k!=='od'&&k!=='q'){const v=OD[rows[i].t][rows[i].g];if(v)rows[i].od=v;}render()});
+$('rows').addEventListener('click',e=>{if(e.target.dataset.del!=null){rows.splice(+e.target.dataset.del,1);render()}});
+$('add').onclick=()=>{rows.push({q:1,g:"20",t:"TXL",od:OD.TXL[20]});render()};
+$('sample').onclick=()=>{rows=[{q:12,g:"20",t:"TXL",od:1.37},{q:6,g:"18",t:"TXL",od:1.6},{q:4,g:"16",t:"GXL",od:2.29},{q:2,g:"12",t:"GXL",od:3.1},{q:1,g:"8",t:"Battery cable (SGT)",od:6.4}];render()};
+$('ff').onchange=calc;$('obj').oninput=calc;
+function pack(circles){
+  const placed=[];circles.sort((a,b)=>b-a).forEach(r=>{
+    if(!placed.length){placed.push({x:0,y:0,r});return}
+    for(let s=0;s<20000;s++){const ang=s*0.35,rad=0.05*s*0.35*r;const x=rad*Math.cos(ang),y=rad*Math.sin(ang);
+      if(placed.every(p=>Math.hypot(p.x-x,p.y-y)>=p.r+r-1e-6)){placed.push({x,y,r});return}}
+  });return placed;
+}
+function calc(){
+  const list=[];rows.forEach(r=>{for(let i=0;i<Math.min(r.q,300);i++)list.push(r.od)});
+  const sum=list.reduce((s,d)=>s+d*d,0),ff=+$('ff').value,D=sum?Math.sqrt(sum/ff):0,obj=+$('obj').value||0;
+  $('D').textContent=D?D.toFixed(1)+' mm':'-';$('Dsub').textContent=`${list.length} wires · ${(D/25.4).toFixed(3)}" · conductor fill ${Math.round(ff*100)}%`;
+  const P=pack(list.map(d=>d/2));let R=0;P.forEach(p=>R=Math.max(R,Math.hypot(p.x,p.y)+p.r));R=Math.max(R,D/2)||1;const k=100/R;
+  $('svg').innerHTML=`<circle r="${D/2*k}" fill="none" stroke="#f59e0b" stroke-dasharray="4 3"/>`+P.map(p=>`<circle cx="${p.x*k}" cy="${p.y*k}" r="${p.r*k*0.97}" fill="#2a3743" stroke="#8b9bab" stroke-width=".6"/>`).join('');
+  if(!D){['braid','loom','hs','grom'].forEach(i=>$(i).innerHTML='');return}
+  const need=Math.max(D,obj);
+  const b=BRAID.find(([,mn,mx])=>mn<=D*1.05&&mx>=need*1.1);
+  $('braid').innerHTML=b?`<div class="big" style="font-size:22px">${b[0]}</div><div class=note>Expands from ${b[1]} to ${b[2]} mm. It covers a ${D.toFixed(1)} mm bundle${obj?` and fits over the ${obj} mm item`:''}.</div>`:'<span class=bad>No standard size fits. Cover the bundle in sections.</span>';
+  const l=LOOM.find(([,id])=>id>=D*1.1);
+  $('loom').innerHTML=l?`<div class="big" style="font-size:22px">${l[0]} ID</div><div class=note>${l[1]} mm inside diameter leaves ${(100*(l[1]/D-1)).toFixed(0)}% clearance over the bundle.</div>`:'<span class=bad>Bundle is larger than 2" loom.</span>';
+  $('hs').innerHTML='<table><tr><th>Ratio</th><th>Size</th><th>Expanded / recovered</th></tr>'+[2,3,4].map(rt=>{const h=HS.find(([,e])=>e>=need*1.05&&e/rt<=D*0.9);return `<tr><td>${rt}:1</td><td>${h?h[0]:'-'}</td><td>${h?h[1]+' / '+(h[1]/rt).toFixed(1)+' mm':'<span class=bad>no fit</span>'}</td></tr>`}).join('')+'</table><div class=note>The expanded ID must clear the largest item, and the recovered ID must be below 90% of the bundle diameter so the tubing grips.</div>';
+  const hole=Math.ceil(need+2);$('grom').innerHTML=`<div class="big" style="font-size:22px">&ge; ${hole} mm hole</div><div class=note>Use a grommet whose ID is at least ${Math.ceil(D)} mm, so the bundle passes through without compressing.</div>`;
+}
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harness Work-Instruction Generator</title>
+<meta name="description" content="Turn a wire list into step-by-step shop-floor work instructions with operator sign-off and traceability log.">
+<style>
+:root{--bg:#0f1419;--panel:#172029;--line:#2a3743;--text:#e6edf3;--mut:#8b9bab;--acc:#f59e0b;--ok:#22c55e;--bad:#ef4444}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px}header a{color:var(--mut);text-decoration:none}
+h1{font-size:20px;margin:0}h2{font-size:15px;margin:0 0 12px}main{max-width:1200px;margin:0 auto;padding:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+label{display:block;font-size:12px;color:var(--mut);margin-bottom:4px}
+input,select,textarea{width:100%;background:#0b1015;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit}
+textarea{font-family:ui-monospace,monospace;font-size:12px}
+button{background:var(--acc);color:#111;border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer}button.sec{background:#2a3743;color:var(--text)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--mut);font-weight:500}
+.note{font-size:12px;color:var(--mut)}.tabs{display:flex;gap:8px;margin-bottom:16px}.tabs button.on{background:var(--acc);color:#111}.tabs button{background:#2a3743;color:var(--text)}
+.op{font-size:22px;line-height:1.45}.op b{color:var(--acc)}.bar{height:10px;background:#0b1015;border-radius:5px;overflow:hidden}.bar div{height:100%;background:var(--ok);transition:width .2s}
+.pins{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.pin{width:40px;height:40px;border-radius:50%;border:2px solid #44525f;display:grid;place-items:center;font-weight:700}.pin.f{background:#22c55e33;border-color:var(--ok)}.pin.c{background:var(--acc);color:#111;border-color:var(--acc);box-shadow:0 0 0 4px #f59e0b55}
+.step{border-left:3px solid var(--line);padding:6px 12px;margin:8px 0}.step.done{border-color:var(--ok);opacity:.65}
+.big{font-size:18px;padding:14px 26px}
+@media print{header,.noprint{display:none!important}body{background:#fff;color:#000}.card{background:#fff;border:1px solid #ccc}.step{break-inside:avoid}}
+</style>
+</head>
+<body>
+<header><a href="index.html">&larr; Harness Tools</a><h1>Work-Instruction Generator</h1></header>
+<main>
+<div class="tabs noprint"><button class="on" data-t="setup">1. Wire list</button><button data-t="doc">2. Instructions</button><button data-t="op">3. Operator mode</button><button data-t="log">4. Traceability log</button></div>
+<section id="setup">
+<div class="card"><h2>Wire list (CSV)</h2>
+<p class="note">Columns: <code>wire,from,from_pin,to,to_pin,gauge,color,length_mm,term_from,term_to</code>. The header row is required and extra columns are ignored.</p>
+<textarea id="csv" rows="12"></textarea>
+<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="sec" id="sample">Load sample</button><label class="sec" style="display:inline-block;background:#2a3743;color:var(--text);padding:8px 14px;border-radius:6px;cursor:pointer;margin:0">Open CSV file<input type="file" id="file" accept=".csv,.txt" hidden></label></div></div>
+<div class="card"><h2>Job</h2><div class="grid">
+<div><label>Harness P/N &amp; rev</label><input id="hpn" value="HX-1001 Rev A"></div><div><label>Work order / lot</label><input id="lot" value="WO-2026-0001"></div>
+<div><label>Operator</label><input id="opr" placeholder="Name or badge"></div><div><label>Strip length (mm)</label><input id="strip" type="number" value="5"></div>
+<div><label>Sequence</label><select id="seq"><option value="conn">Group by connector</option><option value="wire">Wire by wire</option></select></div>
+</div><div style="margin-top:12px"><button id="gen">Generate instructions</button></div><div class="note" id="err"></div></div>
+</section>
+<section id="doc" hidden><div class="card"><div style="display:flex;justify-content:space-between"><h2 id="docTitle">Instructions</h2><button class="sec noprint" onclick="window.print()">Print</button></div><div id="steps"></div></div></section>
+<section id="op" hidden><div class="card">
+<div style="display:flex;justify-content:space-between;align-items:center"><div class="note" id="opHead"></div><div class="note" id="opCount"></div></div><div class="bar" style="margin:10px 0 18px"><div id="prog" style="width:0"></div></div>
+<div id="opTitle" style="color:var(--mut);font-size:13px;text-transform:uppercase;letter-spacing:.05em"></div><div class="op" id="opBody"></div><div id="opPins"></div>
+<div style="display:flex;gap:10px;margin-top:22px"><button class="sec big" id="prev">&larr; Back</button><button class="big" id="done">Done &amp; next &rarr;</button><button class="sec big" id="flag" title="Record a nonconformance">Flag issue</button></div>
+</div></section>
+<section id="log" hidden><div class="card"><div style="display:flex;justify-content:space-between"><h2>Traceability log</h2><div><button class="sec" id="exLog">Export CSV</button> <button class="sec" id="clrLog">Clear</button></div></div>
+<table><thead><tr><th>Time</th><th>Lot</th><th>Operator</th><th>Step</th><th>Action</th><th>Note</th></tr></thead><tbody id="logT"></tbody></table></div></section>
+</main>
+<script>
+const SAMPLE=`wire,from,from_pin,to,to_pin,gauge,color,length_mm,term_from,term_to
+W1,J1,1,J2,1,18,RD,850,0462-201-16141,0460-202-16141
+W2,J1,2,J2,2,18,BK,850,0462-201-16141,0460-202-16141
+W3,J1,3,J3,1,20,WH,1200,0462-201-16141,0462-201-16141
+W4,J1,4,J3,2,20,GN,1200,0462-201-16141,0462-201-16141
+W5,J2,3,J3,3,20,BU,640,0460-202-16141,0462-201-16141
+W6,J2,4,GND1,1,16,BK,300,0460-202-16141,Ring M6`;
+const $=id=>document.getElementById(id);
+function parseCSV(t){const rows=[];let r=[],f='',q=false;for(let i=0;i<t.length;i++){const c=t[i];if(q){if(c=='"'&&t[i+1]=='"'){f+='"';i++}else if(c=='"')q=false;else f+=c}else if(c=='"')q=true;else if(c==','||c=='\t'){r.push(f);f=''}else if(c=='\n'){r.push(f);rows.push(r);r=[];f=''}else if(c!='\r')f+=c}if(f||r.length){r.push(f);rows.push(r)}
+  const h=rows.shift().map(x=>x.trim().toLowerCase());return rows.filter(r=>r.some(x=>x.trim())).map(r=>Object.fromEntries(h.map((k,i)=>[k,(r[i]||'').trim()])))}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>show(b.dataset.t));
+function show(t){document.querySelectorAll('main>section').forEach(s=>s.hidden=s.id!==t);document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));if(t==='log')drawLog()}
+$('sample').onclick=()=>$('csv').value=SAMPLE;$('file').onchange=e=>{const f=e.target.files[0];if(f)f.text().then(t=>$('csv').value=t)};
+let STEPS=[],cur=0,CONN={};
+let LOG=JSON.parse(localStorage.getItem('wi_log')||'[]');
+function gen(){
+  let W;try{W=parseCSV($('csv').value.trim());}catch(e){W=[]}
+  if(!W.length||!('wire'in W[0])){$('err').textContent='Paste a wire list with a header row first.';return}$('err').textContent='';
+  CONN={};W.forEach(w=>{[[w.from,w.from_pin],[w.to,w.to_pin]].forEach(([c,p])=>{if(!c)return;CONN[c]=CONN[c]||new Set();CONN[c].add(String(p))})});
+  const strip=$('strip').value;STEPS=[];
+  const groups={};W.forEach(w=>{const k=`${w.gauge} AWG ${w.color}`;(groups[k]=groups[k]||[]).push(w)});
+  STEPS.push({t:'Kitting: cut list',b:Object.entries(groups).map(([k,ws])=>`<b>${k}</b>: ${ws.length} pcs (${ws.map(w=>w.wire+' @ '+w.length_mm+' mm').join(', ')})`).join('<br>')});
+  const termSteps=w=>[
+    {t:`Cut ${w.wire}`,b:`Cut <b>${w.gauge} AWG ${w.color}</b> to <b>${w.length_mm} mm</b>, then strip ${strip} mm at both ends.`},
+    {t:`${w.wire} end A`,b:`Crimp <b>${w.term_from||'terminal'}</b>, then insert into <b>${w.from}</b> cavity <b>${w.from_pin}</b>. Pull test lightly to confirm it is locked.`,conn:w.from,pin:w.from_pin},
+    {t:`${w.wire} end B`,b:`Crimp <b>${w.term_to||'terminal'}</b>, then insert into <b>${w.to}</b> cavity <b>${w.to_pin}</b>. Pull test lightly to confirm it is locked.`,conn:w.to,pin:w.to_pin}];
+  if($('seq').value==='wire')W.forEach(w=>STEPS.push(...termSteps(w)));
+  else{const done=new Set();Object.keys(CONN).forEach(c=>{W.filter(w=>(w.from===c||w.to===c)&&!done.has(w.wire)).forEach(w=>{done.add(w.wire);STEPS.push(...termSteps(w))});
+    STEPS.push({t:`Close ${c}`,b:`Install the wedge lock or TPA on <b>${c}</b>, seal any unused cavities, and check that every terminal is seated.`,conn:c})})}
+  STEPS.push({t:'Label & dress',b:'Apply wire and connector labels, then tape or sleeve the branches to drawing length.'});
+  STEPS.push({t:'Final test',b:`Run a continuity and isolation test on all ${W.length} circuits, then record the result for lot <b>${esc($('lot').value)}</b>.`});
+  STEPS.forEach((s,i)=>s.n=i+1);cur=0;
+  $('docTitle').textContent=`${$('hpn').value} - ${STEPS.length} steps`;
+  $('steps').innerHTML=STEPS.map(s=>`<div class=step><div class=note>Step ${s.n} &middot; ${s.t}</div><div>${s.b}</div></div>`).join('');
+  drawOp();show('doc');
+}
+$('gen').onclick=gen;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function pinFace(c,pin){const pins=[...CONN[c]].sort((a,b)=>(+a||0)-(+b||0)||a.localeCompare(b));const filled=new Set(STEPS.slice(0,cur).filter(s=>s.conn===c&&s.pin).map(s=>String(s.pin)));
+  return `<div class=note style="margin-top:16px">${esc(c)} wire side view</div><div class=pins>${pins.map(p=>`<div class="pin ${p==pin?'c':filled.has(p)?'f':''}">${esc(p)}</div>`).join('')}</div>`}
+function drawOp(){
+  if(!STEPS.length){$('opBody').textContent='Generate instructions first.';return}
+  const s=STEPS[cur];$('opHead').textContent=`${$('hpn').value} · ${$('lot').value} · ${$('opr').value||'no operator set'}`;$('opCount').textContent=`Step ${cur+1} of ${STEPS.length}`;
+  $('prog').style.width=(cur/STEPS.length*100)+'%';$('opTitle').textContent=s.t;$('opBody').innerHTML=s.b;$('opPins').innerHTML=s.conn?pinFace(s.conn,s.pin):'';
+}
+function logIt(action,note){LOG.push({ts:new Date().toISOString(),lot:$('lot').value,op:$('opr').value,step:`${STEPS[cur].n} ${STEPS[cur].t}`,action,note:note||''});localStorage.setItem('wi_log',JSON.stringify(LOG))}
+$('done').onclick=()=>{if(!STEPS.length)return;if(!$('opr').value){alert('Enter an operator name in the job settings first.');show('setup');return}
+  logIt('done');if(cur<STEPS.length-1){cur++;drawOp()}else{$('prog').style.width='100%';$('opBody').innerHTML='<b>All steps complete.</b> The log is saved in this browser.';$('opPins').innerHTML=''}};
+$('prev').onclick=()=>{if(cur>0){cur--;drawOp()}};
+$('flag').onclick=()=>{if(!STEPS.length)return;const n=prompt('Describe the issue (nonconformance):');if(n)logIt('FLAG',n)};
+function drawLog(){$('logT').innerHTML=LOG.slice().reverse().map(l=>`<tr><td>${new Date(l.ts).toLocaleString()}</td><td>${esc(l.lot)}</td><td>${esc(l.op)}</td><td>${esc(l.step)}</td><td>${l.action==='FLAG'?'<b style="color:var(--bad)">FLAG</b>':'done'}</td><td>${esc(l.note)}</td></tr>`).join('')}
+$('exLog').onclick=()=>{const csv='timestamp,lot,operator,step,action,note\n'+LOG.map(l=>[l.ts,l.lot,l.op,l.step,l.action,l.note].map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='traceability-log.csv';a.click()};
+$('clrLog').onclick=()=>{if(confirm('Clear the whole log?')){LOG=[];localStorage.removeItem('wi_log');drawLog()}};
+$('csv').value=SAMPLE;
+</script>
+</body>
+</html>
