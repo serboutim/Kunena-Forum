@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wire Harness Builder</title>
+<style>
+:root{
+  --bg:#0b0f17;--panel:#121826;--panel2:#182032;--border:#263047;--text:#e6eaf2;--muted:#8d97ab;
+  --accent:#4f8cff;--accent-soft:rgba(79,140,255,.15);--ok:#22c55e;--warn:#f59e0b;--err:#ef4444;--input:#0e1420;
+  --radius:8px;--bottom-h:270px;
+}
+body.light{
+  --bg:#eef1f7;--panel:#ffffff;--panel2:#f5f7fb;--border:#d6dbe6;--text:#1d2433;--muted:#5d6779;--input:#ffffff;
+  --accent-soft:rgba(79,140,255,.12);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font:13px/1.4 Inter,"Segoe UI",system-ui,-apple-system,Arial,sans-serif;background:var(--bg);color:var(--text)}
+button,input,select,textarea{font:inherit;color:inherit}
+#app{display:grid;height:100vh;grid-template-rows:auto 1fr var(--bottom-h);grid-template-columns:240px 1fr 340px;
+  grid-template-areas:"top top top" "lib canvas props" "lib bottom props"}
+body.bottom-collapsed{--bottom-h:38px}
+
+/* Top bar */
+header{grid-area:top;display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;margin-right:10px;white-space:nowrap}
+.brand svg{flex:none}
+.brand small{font-weight:500;color:var(--muted);font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.tb-group{display:flex;gap:4px;padding-right:8px;margin-right:4px;border-right:1px solid var(--border)}
+.tb-group:last-child{border-right:none}
+.btn{background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;white-space:nowrap;line-height:1.3}
+.btn:hover{border-color:var(--accent);background:var(--accent-soft)}
+.btn:disabled{opacity:.4;cursor:default;border-color:var(--border);background:var(--panel2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.danger:hover{border-color:var(--err);background:rgba(239,68,68,.12)}
+.btn.sm{padding:3px 8px;font-size:12px}
+.spacer{flex:1}
+
+/* Library */
+#lib{grid-area:lib;background:var(--panel);border-right:1px solid var(--border);overflow:auto;padding:10px}
+#lib h3,#props h3{margin:4px 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+#libSearch{width:100%;margin-bottom:8px}
+.lib-group{margin-bottom:10px}
+.lib-group-title{font-weight:600;font-size:12px;margin:6px 0 4px;color:var(--text)}
+.lib-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;cursor:grab;background:var(--panel2);user-select:none}
+.lib-item:hover{border-color:var(--accent);background:var(--accent-soft)}
+.lib-swatch{width:14px;height:14px;border-radius:3px;border:1px solid rgba(128,128,128,.6);flex:none}
+.lib-item .meta{font-size:11px;color:var(--muted)}
+
+/* Canvas */
+#canvasWrap{grid-area:canvas;position:relative;overflow:hidden;background:var(--bg)}
+#cv{width:100%;height:100%;display:block;cursor:default;user-select:none}
+#cv.panning{cursor:grabbing}
+#cv .pin{cursor:crosshair}
+#cv .pin:hover circle.pc{stroke:var(--accent);stroke-width:3}
+#cv .conn .body{cursor:move}
+#cv .wire{cursor:pointer}
+#cv .wire:hover .hit{stroke:var(--accent);stroke-opacity:.25}
+#hint{position:absolute;left:10px;bottom:10px;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--muted);font-size:12px;pointer-events:none;max-width:70%}
+#zoomCtl{position:absolute;right:10px;bottom:10px;display:flex;gap:4px}
+#emptyMsg{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:none;color:var(--muted);text-align:center;font-size:14px}
+
+/* Properties */
+#props{grid-area:props;background:var(--panel);border-left:1px solid var(--border);overflow:auto;padding:10px 12px 30px}
+.section{border:1px solid var(--border);border-radius:var(--radius);padding:10px;margin-bottom:10px;background:var(--panel2)}
+.section-title{font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.fld{display:flex;flex-direction:column;gap:3px;min-width:0}
+.fld>span{font-size:11px;color:var(--muted)}
+.fld.chk{flex-direction:row;align-items:center;gap:6px}
+.fld.chk>span{font-size:12px;color:var(--text)}
+.full{grid-column:1/-1}
+input[type=text],input:not([type]),input[type=number],input[type=date],select,textarea,#libSearch{background:var(--input);border:1px solid var(--border);border-radius:6px;padding:5px 7px;width:100%;min-width:0}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+input[type=color]{width:100%;height:30px;padding:2px;border:1px solid var(--border);border-radius:6px;background:var(--input)}
+textarea{resize:vertical;min-height:50px}
+.row-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:12px}
+.kv b{color:var(--muted);font-weight:500}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:999px;font-size:11px;border:1px solid var(--border);background:var(--panel)}
+.cdot{display:inline-block;width:10px;height:10px;border-radius:50%;border:1px solid rgba(128,128,128,.7);vertical-align:-1px}
+.muted{color:var(--muted)}
+.kbd{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;padding:0 5px;border:1px solid var(--border);border-radius:4px;background:var(--panel)}
+
+table.tbl{border-collapse:collapse;width:100%;font-size:12px}
+.tbl th,.tbl td{border-bottom:1px solid var(--border);padding:4px 6px;text-align:left;white-space:nowrap}
+.tbl th{position:sticky;top:0;background:var(--panel2);font-weight:600;color:var(--muted);z-index:1}
+.tbl tr.clickable{cursor:pointer}
+.tbl tr.clickable:hover td{background:var(--accent-soft)}
+.tbl tr.selected td{background:var(--accent-soft)}
+.tbl td.num,.tbl th.num{text-align:right}
+.pintbl input[type=text]{padding:2px 5px}
+.pintbl td{padding:2px 3px}
+
+/* Bottom */
+#bottom{grid-area:bottom;background:var(--panel);border-top:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+#tabs{display:flex;gap:2px;padding:4px 8px 0;border-bottom:1px solid var(--border);align-items:flex-end}
+.tab{padding:6px 12px;border:1px solid transparent;border-bottom:none;border-radius:6px 6px 0 0;cursor:pointer;color:var(--muted);background:none}
+.tab.active{color:var(--text);background:var(--panel2);border-color:var(--border)}
+.badge{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;font-size:11px;text-align:center;margin-left:4px;background:var(--border);color:var(--text)}
+.badge.err{background:var(--err);color:#fff}.badge.warn{background:var(--warn);color:#111}
+#tabBody{flex:1;overflow:auto;padding:8px 10px;min-height:0}
+body.bottom-collapsed #tabBody{display:none}
+.lvl{font-weight:700;font-size:11px;padding:1px 6px;border-radius:4px}
+.lvl.error{background:var(--err);color:#fff}.lvl.warn{background:var(--warn);color:#111}.lvl.info{background:var(--accent);color:#fff}
+.cards{display:flex;gap:10px;flex-wrap:wrap}
+.card{border:1px solid var(--border);border-radius:var(--radius);padding:10px;background:var(--panel2);width:360px}
+.card.active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.chip{border:1px solid var(--border);border-radius:999px;padding:1px 8px;font-size:11px;cursor:pointer;background:var(--panel)}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+#printArea{display:none}
+@media print{
+  body{background:#fff;color:#000}
+  #app{display:none}
+  #printArea{display:block;padding:10mm;font-size:11px}
+  #printArea table{border-collapse:collapse;width:100%;margin-bottom:8mm}
+  #printArea th,#printArea td{border:1px solid #999;padding:2px 4px;text-align:left}
+  #printArea h1{font-size:18px;margin:0 0 4px}
+  #printArea h2{font-size:14px;margin:6mm 0 2mm}
+  #printArea .drawing svg{width:100%;height:auto;max-height:160mm;border:1px solid #999}
+  #printArea .tb{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid #999;margin-bottom:5mm}
+  #printArea .tb div{border:1px solid #ccc;padding:3px 5px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="6" height="14" rx="1.5"/><rect x="16" y="5" width="6" height="14" rx="1.5"/><path d="M8 9c4 0 4 6 8 6M8 15c4 0 4-6 8-6" stroke="#4f8cff"/></svg>
+      Wire Harness Builder <small id="projTitle"></small>
+    </div>
+    <div class="tb-group">
+      <button class="btn" data-act="new" title="New project">New</button>
+      <button class="btn" data-act="open" title="Open project JSON">Open</button>
+      <button class="btn" data-act="save" title="Save project JSON (Ctrl+S)">Save</button>
+      <button class="btn" data-act="sample" title="Load example harness">Example</button>
+    </div>
+    <div class="tb-group">
+      <button class="btn" data-act="undo" id="bUndo" title="Undo (Ctrl+Z)">Undo</button>
+      <button class="btn" data-act="redo" id="bRedo" title="Redo (Ctrl+Y)">Redo</button>
+    </div>
+    <div class="tb-group">
+      <button class="btn" data-act="duplicate" title="Duplicate connector (Ctrl+D)">Duplicate</button>
+      <button class="btn" data-act="rotate" title="Rotate connector 90 deg (R)">Rotate</button>
+      <button class="btn danger" data-act="delete" title="Delete selection (Del)">Delete</button>
+      <button class="btn" data-act="autolabel" title="Renumber connectors and wires">Auto-label</button>
+      <button class="btn" data-act="estimate-all" title="Estimate all wire lengths from drawing">Estimate lengths</button>
+    </div>
+    <div class="tb-group">
+      <button class="btn" data-act="csv-wires">Wire list CSV</button>
+      <button class="btn" data-act="csv-bom">BOM CSV</button>
+      <button class="btn" data-act="svg">SVG</button>
+      <button class="btn" data-act="png">PNG</button>
+      <button class="btn" data-act="print">Print</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn" data-act="theme" title="Toggle light/dark theme">Theme</button>
+  </header>
+
+  <aside id="lib">
+    <h3>Component library</h3>
+    <input id="libSearch" placeholder="Search connectors...">
+    <div id="libList"></div>
+    <button class="btn primary" style="width:100%;margin-top:6px" data-act="lib-custom">+ New custom connector</button>
+    <p class="muted" style="font-size:11px;margin-top:10px">Click an item to add it, or drag it onto the canvas. Then drag from a pin to another pin to create a wire.</p>
+  </aside>
+
+  <main id="canvasWrap">
+    <svg id="cv" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="gridMinor" width="10" height="10" patternUnits="userSpaceOnUse"><path id="gridMinorPath" d="M10 0H0V10" fill="none" stroke-width=".5"/></pattern>
+        <pattern id="gridMajor" width="100" height="100" patternUnits="userSpaceOnUse"><rect width="100" height="100" fill="url(#gridMinor)"/><path id="gridMajorPath" d="M100 0H0V100" fill="none" stroke-width="1"/></pattern>
+      </defs>
+      <rect id="cvBg" width="100%" height="100%"/>
+      <rect id="gridRect" width="100%" height="100%" fill="url(#gridMajor)"/>
+      <g id="vp"></g>
+    </svg>
+    <div id="emptyMsg"><div>Add connectors from the library on the left<br><span style="font-size:12px">or load the <b>Example</b> harness from the toolbar</span></div></div>
+    <div id="hint"></div>
+    <div id="zoomCtl">
+      <button class="btn sm" data-act="zoom-out">-</button>
+      <button class="btn sm" data-act="fit">Fit</button>
+      <button class="btn sm" data-act="zoom-in">+</button>
+    </div>
+  </main>
+
+  <aside id="props"></aside>
+
+  <section id="bottom">
+    <div id="tabs"></div>
+    <div id="tabBody"></div>
+  </section>
+</div>
+<div id="printArea"></div>
+<input type="file" id="fileIn" accept=".json,application/json" hidden>
+
+<script>
+'use strict';
+/* ------------------------------------------------------------------ constants */
+const AWG = [
+  {awg:30,mm2:0.05},{awg:28,mm2:0.08},{awg:26,mm2:0.13},{awg:24,mm2:0.20},{awg:22,mm2:0.34},
+  {awg:20,mm2:0.52},{awg:18,mm2:0.82},{awg:16,mm2:1.31},{awg:14,mm2:2.08},{awg:12,mm2:3.31},{awg:10,mm2:5.26}
+];
+const COLORS = {
+  BK:{n:'Black',hex:'#1b1b1b'}, BN:{n:'Brown',hex:'#7b4a26'}, RD:{n:'Red',hex:'#d62828'}, OG:{n:'Orange',hex:'#f77f00'},
+  YE:{n:'Yellow',hex:'#f2d000'}, GN:{n:'Green',hex:'#2a9d3f'}, BU:{n:'Blue',hex:'#1f6fd1'}, VT:{n:'Violet',hex:'#7b3fb8'},
+  GY:{n:'Grey',hex:'#8d8d8d'}, WH:{n:'White',hex:'#f4f4f4'}, PK:{n:'Pink',hex:'#f28ab2'}, TQ:{n:'Turquoise',hex:'#2ec4b6'},
+  LB:{n:'Light blue',hex:'#7cc6ff'}, BG:{n:'Beige',hex:'#d9c8a0'}
+};
+const INSULATION = ['PVC','XLPE (GXL)','XLPE (TXL)','PTFE','FEP','Silicone','PUR'];
+const VOLTAGES = ['30 V','60 V','150 V','300 V','600 V','1000 V'];
+const TEMPS = ['80 °C','105 °C','125 °C','150 °C','200 °C'];
+const GROUP_TYPES = [['none','None'],['twisted','Twisted pair'],['shielded','Shielded'],['twisted-shielded','Twisted + shielded']];
+const COVERINGS = ['None','Braided sleeve (PET)','Convoluted tube','Heat shrink tubing','PVC tape','Fabric tape','Spiral wrap','Silicone sleeve'];
+const BACKSHELLS = ['None','Straight boot','90 deg backshell','Strain relief','Heat shrink boot','Secondary lock (TPA)'];
+const MOUNTING = ['Free hanging','Panel mount','Flange mount','Bracket / clip','PCB header'];
+const ACC_PRESETS = [
+  {name:'Cable tie 100 mm',pn:'',qty:10,unit:'pcs'},{name:'Cable tie 200 mm',pn:'',qty:5,unit:'pcs'},
+  {name:'Heat shrink 6 mm',pn:'',qty:0.5,unit:'m'},{name:'Heat shrink 12 mm',pn:'',qty:0.3,unit:'m'},
+  {name:'Harness label (flag)',pn:'',qty:2,unit:'pcs'},{name:'Rubber grommet',pn:'',qty:1,unit:'pcs'},
+  {name:'Edge clip',pn:'',qty:4,unit:'pcs'},{name:'P-clamp',pn:'',qty:2,unit:'pcs'}
+];
+const PIN_H = 20;
+const pad2 = n => String(n).padStart(2,'0');
+
+const LIB = [
+  {group:'Molex Micro-Fit 3.0', items:[2,4,6,8,12].map(n=>({label:`Micro-Fit ${n} pos`,mfr:'Molex',pn:`43025-${pad2(n)}00`,pins:n,rows:n>=12?2:1,pitch:3.0,color:'#2b2b2b',gender:'F',termPn:'43030-0001',awgThick:18,awgThin:24}))},
+  {group:'JST XH 2.5 mm', items:[2,3,4,5,6].map(n=>({label:`XH ${n} pos`,mfr:'JST',pn:`XHP-${n}`,pins:n,rows:1,pitch:2.5,color:'#efe9d8',gender:'F',termPn:'SXH-001T-P0.6',awgThick:22,awgThin:28}))},
+  {group:'Deutsch DT (sealed)', items:[2,3,4,6,8,12].map(n=>({label:`DT06-${n}S`,mfr:'TE / Deutsch',pn:`DT06-${n}S`,pins:n,rows:n>=8?2:1,pitch:0,color:'#3a3a3a',gender:'F',termPn:'0462-201-16141',awgThick:14,awgThin:20,sealed:true,plugPn:'0413-204-2005',sealPn:'integral'}))},
+  {group:'TE Superseal 1.5 (sealed)', items:[1,2,3,4,5,6].map(n=>({label:`Superseal ${n} pos`,mfr:'TE Connectivity',pn:'',pins:n,rows:1,pitch:3.5,color:'#222222',gender:'F',termPn:'',awgThick:18,awgThin:22,sealed:true,sealPn:'Wire seal',plugPn:'Cavity plug'}))},
+  {group:'DuPont 2.54 mm', items:[1,2,3,4,5,6,8,10].map(n=>({label:`DuPont 1x${n}`,mfr:'Generic',pn:`DuPont 1x${n} housing`,pins:n,rows:1,pitch:2.54,color:'#111111',gender:'F',termPn:'DuPont female crimp',awgThick:22,awgThin:28}))},
+  {group:'Terminals', items:[
+    {label:'Ring terminal M4',kind:'terminal',mfr:'Generic',pn:'Ring M4 insulated',pins:1,color:'#c0392b',awgThick:16,awgThin:22,des:'T'},
+    {label:'Ring terminal M6',kind:'terminal',mfr:'Generic',pn:'Ring M6 insulated',pins:1,color:'#2c6fd6',awgThick:14,awgThin:16,des:'T'},
+    {label:'Fork terminal M4',kind:'terminal',mfr:'Generic',pn:'Fork M4 insulated',pins:1,color:'#c0392b',awgThick:16,awgThin:22,des:'T'},
+    {label:'Faston 6.3 mm female',kind:'terminal',mfr:'Generic',pn:'Faston 6.3 female',pins:1,color:'#c9a227',awgThick:14,awgThin:22,des:'T'},
+    {label:'Wire ferrule',kind:'terminal',mfr:'Generic',pn:'Ferrule',pins:1,color:'#9aa0a6',awgThick:10,awgThin:26,des:'T'},
+    {label:'Open end / tinned',kind:'terminal',mfr:'',pn:'',pins:1,color:'#777777',awgThick:10,awgThin:30,des:'T'}
+  ]},
+  {group:'Splices', items:[
+    {label:'Ultrasonic splice',kind:'splice',mfr:'',pn:'Ultrasonic weld',pins:1,color:'#9b59b6',awgThick:10,awgThin:28,des:'S'},
+    {label:'Butt splice (crimp)',kind:'splice',mfr:'Generic',pn:'Butt splice',pins:1,color:'#e67e22',awgThick:12,awgThin:22,des:'S'},
+    {label:'Solder sleeve',kind:'splice',mfr:'Generic',pn:'Solder sleeve',pins:1,color:'#16a085',awgThick:16,awgThin:28,des:'S'}
+  ]}
+];
+
+const THEMES = {
+  dark:{bg:'#0f1420',minor:'#171e2c',major:'#202a3d',body:'#1a2130',border:'#3a4560',text:'#e6eaf2',sub:'#9aa4b8',pin:'#cfd6e4',outline:'rgba(150,165,190,.55)',accent:'#4f8cff',label:'#0f1420'},
+  light:{bg:'#f7f8fb',minor:'#eceff5',major:'#dde2eb',body:'#ffffff',border:'#aab3c5',text:'#1d2433',sub:'#5b667a',pin:'#4a5468',outline:'rgba(0,0,0,.45)',accent:'#2f6fe6',label:'#ffffff'}
+};
+
+/* ------------------------------------------------------------------ state */
+const uid = () => Math.random().toString(36).slice(2,10);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const today = () => new Date().toISOString().slice(0,10);
+
+function defaultProject(){
+  return {name:'Untitled harness',rev:'A',author:'',date:today(),customer:'',description:'',
+    routing:'curved',snap:true,showGrid:true,showLabels:true,scale:1.5,autoLength:true,waste:5,
+    defaults:{awg:20,color:'BK',stripe:'',insulation:'PVC',voltage:'60 V',temp:'105 °C',strip:5}};
+}
+function blankConn(){
+  return {id:uid(),kind:'connector',des:'J1',name:'',mfr:'',pn:'',color:'#2b2b2b',gender:'F',pins:4,rows:1,pitch:2.54,
+    numbering:'seq',pinNames:'numeric',side:'right',rot:0,x:100,y:100,termPn:'',awgThick:16,awgThin:28,
+    sealed:false,sealPn:'',plugPn:'',backshell:'None',backshellPn:'',mounting:'Free hanging',notes:'',pinData:[]};
+}
+function blankWire(){
+  const d = state ? state.project.defaults : defaultProject().defaults;
+  return {id:uid(),wid:'W1',from:{c:'',p:0},to:{c:'',p:0},signal:'',awg:d.awg,color:d.color,stripe:d.stripe,
+    insulation:d.insulation,voltage:d.voltage,temp:d.temp,length:0,loop:0,stripA:d.strip,stripB:d.strip,
+    group:'',groupType:'none',twistRate:33,markers:false,notes:''};
+}
+function defaultState(){ return {version:1,project:defaultProject(),connectors:[],wires:[],bundles:[],accessories:[]}; }
+
+let state = null;
+state = defaultState();
+let view = {x:60,y:40,z:1};
+let sel = null;            // {type:'conn'|'wire', id}
+let wiring = null;         // {c, p, click}
+let drag = null, pan = null;
+let mouseWorld = {x:0,y:0};
+let undoStack = [], redoStack = [];
+let activeTab = 'wires';
+let activeBundle = null;
+let pendingSnap = null;
+let theme = localStorage.getItem('whb.theme') || 'dark';
+
+const getConn = id => state.connectors.find(c => c.id === id);
+const getWire = id => state.wires.find(w => w.id === id);
+const awgInfo = a => AWG.find(g => g.awg == a) || {awg:a,mm2:0};
+const colorHex = c => (COLORS[c] || COLORS.BK).hex;
+const colorCode = w => w.color + (w.stripe ? '/' + w.stripe : '');
+
+function normalizeConn(c){
+  c.pins = clamp(Math.round(c.pins) || 1, 1, 96);
+  c.rows = c.kind === 'connector' ? (c.rows == 2 ? 2 : 1) : 1;
+  if (!Array.isArray(c.pinData)) c.pinData = [];
+  while (c.pinData.length < c.pins) c.pinData.push({label:'',term:'',seal:!!c.sealed,unused:false});
+  c.pinData.length = c.pins;
+  state.wires = state.wires.filter(w => !((w.from.c === c.id && w.from.p >= c.pins) || (w.to.c === c.id && w.to.p >= c.pins)));
+}
+function migrate(s){
+  const out = defaultState();
+  out.project = Object.assign(defaultProject(), s.project || {});
+  out.project.defaults = Object.assign(defaultProject().defaults, (s.project || {}).defaults || {});
+  state = out;
+  out.connectors = (s.connectors || []).map(c => Object.assign(blankConn(), c));
+  out.wires = (s.wires || []).map(w => Object.assign(blankWire(), w));
+  out.connectors.forEach(normalizeConn);
+  out.wires = out.wires.filter(w => getConn(w.from.c) && getConn(w.to.c));
+  out.bundles = (s.bundles || []).map(b => Object.assign({id:uid(),name:'B1',covering:'None',coveringPn:'',length:0,color:'#4f8cff',wires:[]}, b));
+  out.accessories = (s.accessories || []).map(a => Object.assign({id:uid(),name:'',pn:'',qty:1,unit:'pcs'}, a));
+  return out;
+}
+
+/* ------------------------------------------------------------------ history & persistence */
+function checkpoint(){ undoStack.push(JSON.stringify(state)); if (undoStack.length > 200) undoStack.shift(); redoStack = []; }
+function undo(){ if (!undoStack.length) return; redoStack.push(JSON.stringify(state)); state = JSON.parse(undoStack.pop()); fixSel(); renderAll(); }
+function redo(){ if (!redoStack.length) return; undoStack.push(JSON.stringify(state)); state = JSON.parse(redoStack.pop()); fixSel(); renderAll(); }
+function fixSel(){
+  if (sel && ((sel.type === 'conn' && !getConn(sel.id)) || (sel.type === 'wire' && !getWire(sel.id)))) sel = null;
+  if (activeBundle && !state.bundles.find(b => b.id === activeBundle)) activeBundle = null;
+}
+let saveTimer = null;
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { try { localStorage.setItem('whb.project.v1', JSON.stringify(state)); } catch(e) {} }, 250);
+}
+
+/* ------------------------------------------------------------------ naming */
+function nextDes(prefix){
+  let max = 0;
+  state.connectors.forEach(c => { const m = String(c.des).match(new RegExp('^' + prefix + '(\\d+)$')); if (m) max = Math.max(max, +m[1]); });
+  return prefix + (max + 1);
+}
+function nextWid(){
+  let max = 0;
+  state.wires.forEach(w => { const m = String(w.wid).match(/^W(\d+)$/); if (m) max = Math.max(max, +m[1]); });
+  return 'W' + (max + 1);
+}
+function pinName(c, i){
+  if (c.pinNames === 'alpha'){ const L = 'ABCDEFGHJKLMNPRSTUVWXYZ'; let s = '', n = i; do { s = L[n % L.length] + s; n = Math.floor(n / L.length) - 1; } while (n >= 0); return s; }
+  return String(i + 1);
+}
+const pinRef = (cid, p) => { const c = getConn(cid); return c ? `${c.des}:${pinName(c, p)}` : '?'; };
+const desPrefix = c => c.kind === 'splice' ? 'S' : c.kind === 'terminal' ? 'T' : 'J';
+
+/* ------------------------------------------------------------------ geometry */
+function geom(c){
+  const rows = c.rows === 2 && c.kind === 'connector' ? 2 : 1;
+  const per = Math.ceil(c.pins / rows);
+  const w = c.kind === 'splice' ? 86 : c.kind === 'terminal' ? 120 : (rows === 1 ? 150 : 200);
+  const h = 34 + per * PIN_H + 6;
+  return {w, h, rows, per};
+}
+function pinLocal(c, i, g){
+  let col, row;
+  if (g.rows === 1){ col = 0; row = i; }
+  else if (c.numbering === 'odd-even'){ col = i % 2; row = Math.floor(i / 2); }
+  else { col = Math.floor(i / g.per); row = i % g.per; }
+  let x, dx;
+  if (c.kind === 'splice'){ x = g.w / 2; dx = 0; }
+  else if (g.rows === 1){ const left = c.side === 'left'; x = left ? 12 : g.w - 12; dx = left ? -1 : 1; }
+  else { x = col === 0 ? 12 : g.w - 12; dx = col === 0 ? -1 : 1; }
+  return {x, y: 34 + row * PIN_H + PIN_H / 2, col, dx};
+}
+function rotPt(x, y, cx, cy, deg){
+  const r = deg * Math.PI / 180, co = Math.cos(r), si = Math.sin(r), dx = x - cx, dy = y - cy;
+  return {x: cx + dx * co - dy * si, y: cy + dx * si + dy * co};
+}
+function pinPos(cid, i){
+  const c = getConn(cid); if (!c) return {x:0,y:0,dir:null};
+  const g = geom(c), p = pinLocal(c, i, g);
+  const a = rotPt(p.x, p.y, g.w / 2, g.h / 2, c.rot);
+  let dir = null;
+  if (p.dx){ const d = rotPt(p.dx, 0, 0, 0, c.rot); dir = {x: Math.round(d.x), y: Math.round(d.y)}; }
+  return {x: a.x + c.x, y: a.y + c.y, dir};
+}
+function wirePath(w){
+  const a = pinPos(w.from.c, w.from.p), b = pinPos(w.to.c, w.to.p);
+  const da = a.dir || {x: Math.sign(b.x - a.x) || 1, y: 0};
+  const db = b.dir || {x: Math.sign(a.x - b.x) || -1, y: 0};
+  const route = state.project.routing;
+  if (route === 'straight'){
+    const a1 = {x: a.x + da.x * 14, y: a.y + da.y * 14}, b1 = {x: b.x + db.x * 14, y: b.y + db.y * 14};
+    return {d:`M${a.x},${a.y}L${a1.x},${a1.y}L${b1.x},${b1.y}L${b.x},${b.y}`, mid:{x:(a1.x + b1.x) / 2, y:(a1.y + b1.y) / 2}};
+  }
+  if (route === 'ortho'){
+    const a1 = {x: a.x + da.x * 20, y: a.y + da.y * 20}, b1 = {x: b.x + db.x * 20, y: b.y + db.y * 20};
+    if (Math.abs(da.x) > .5){
+      const mx = (a1.x + b1.x) / 2;
+      return {d:`M${a.x},${a.y}L${a1.x},${a1.y}L${mx},${a1.y}L${mx},${b1.y}L${b1.x},${b1.y}L${b.x},${b.y}`, mid:{x:mx, y:(a1.y + b1.y) / 2}};
+    }
+    const my = (a1.y + b1.y) / 2;
+    return {d:`M${a.x},${a.y}L${a1.x},${a1.y}L${a1.x},${my}L${b1.x},${my}L${b1.x},${b1.y}L${b.x},${b.y}`, mid:{x:(a1.x + b1.x) / 2, y:my}};
+  }
+  const k = Math.max(40, Math.hypot(b.x - a.x, b.y - a.y) * 0.4);
+  const c1 = {x: a.x + da.x * k, y: a.y + da.y * k}, c2 = {x: b.x + db.x * k, y: b.y + db.y * k};
+  return {d:`M${a.x},${a.y}C${c1.x},${c1.y} ${c2.x},${c2.y} ${b.x},${b.y}`,
+    mid:{x:(a.x + 3 * c1.x + 3 * c2.x + b.x) / 8, y:(a.y + 3 * c1.y + 3 * c2.y + b.y) / 8}};
+}
+const wireWidth = w => Math.max(1.6, (32 - w.awg) / 2.6);
+const wiresOnPin = (cid, p) => state.wires.filter(w => (w.from.c === cid && w.from.p === p) || (w.to.c === cid && w.to.p === p));
+const wiresOnConn = cid => state.wires.filter(w => w.from.c === cid || w.to.c === cid);
+function textOn(hex){
+  const h = (hex || '#000').replace('#',''); if (h.length < 6) return '#fff';
+  const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#111' : '#fff';
+}
+const trunc = (s, n) => (s = String(s || '')).length > n ? s.slice(0, n - 1) + '\u2026' : s;
+
+/* ------------------------------------------------------------------ canvas rendering */
+const svg = document.getElementById('cv'), vp = document.getElementById('vp');
+const FONT = 'Inter, Segoe UI, Arial, sans-serif';
+
+function renderCanvas(){
+  const T = THEMES[theme];
+  document.getElementById('cvBg').setAttribute('fill', T.bg);
+  document.getElementById('gridMinorPath').setAttribute('stroke', T.minor);
+  document.getElementById('gridMajorPath').setAttribute('stroke', T.major);
+  const gr = document.getElementById('gridRect');
+  gr.style.display = state.project.showGrid ? '' : 'none';
+  document.getElementById('gridMajor').setAttribute('patternTransform', `translate(${view.x},${view.y}) scale(${view.z})`);
+  vp.setAttribute('transform', `translate(${view.x},${view.y}) scale(${view.z})`);
+  vp.innerHTML = buildDrawing(T, true);
+  document.getElementById('emptyMsg').style.display = state.connectors.length ? 'none' : 'flex';
+  updateHint();
+}
+
+function buildDrawing(T, interactive){
+  let out = '';
+  const paths = {};
+  state.wires.forEach(w => paths[w.id] = wirePath(w));
+
+  // bundle coverings
+  state.bundles.forEach(b => {
+    const op = b.id === activeBundle ? .5 : .22;
+    b.wires.forEach(wid => { const p = paths[wid]; if (p) out += `<path d="${p.d}" fill="none" stroke="${esc(b.color)}" stroke-opacity="${op}" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>`; });
+  });
+  // shield halos
+  state.wires.forEach(w => {
+    if (w.groupType === 'shielded' || w.groupType === 'twisted-shielded')
+      out += `<path d="${paths[w.id].d}" fill="none" stroke="${T.sub}" stroke-width="${wireWidth(w) + 8}" stroke-dasharray="2 3" stroke-opacity=".7"/>`;
+  });
+  // wires
+  state.wires.forEach(w => {
+    const p = paths[w.id], wd = wireWidth(w), isSel = interactive && sel && sel.type === 'wire' && sel.id === w.id;
+    out += `<g class="wire" data-wire="${w.id}">`;
+    if (interactive) out += `<path class="hit" d="${p.d}" fill="none" stroke="transparent" stroke-width="${wd + 12}"/>`;
+    if (isSel) out += `<path d="${p.d}" fill="none" stroke="${T.accent}" stroke-width="${wd + 7}" stroke-opacity=".55" stroke-linecap="round"/>`;
+    out += `<path d="${p.d}" fill="none" stroke="${T.outline}" stroke-width="${wd + 2}" stroke-linecap="round"/>`;
+    out += `<path class="base" d="${p.d}" fill="none" stroke="${colorHex(w.color)}" stroke-width="${wd}" stroke-linecap="round"/>`;
+    if (w.stripe) out += `<path d="${p.d}" fill="none" stroke="${colorHex(w.stripe)}" stroke-width="${Math.max(1, wd * .45)}" stroke-dasharray="7 7"/>`;
+    if (w.groupType === 'twisted' || w.groupType === 'twisted-shielded') out += `<path d="${p.d}" fill="none" stroke="${T.bg}" stroke-opacity=".7" stroke-width="1" stroke-dasharray="1 5"/>`;
+    if (state.project.showLabels){
+      const parts = [w.wid, `${w.awg}AWG`, colorCode(w)];
+      if (w.group && w.groupType !== 'none') parts.push((w.groupType.startsWith('twisted') ? 'TP:' : 'SH:') + w.group);
+      const txt = parts.join(' \u00b7 '), tw = txt.length * 5.6 + 10;
+      out += `<rect x="${p.mid.x - tw / 2}" y="${p.mid.y - 8}" width="${tw}" height="16" rx="4" fill="${T.label}" stroke="${isSel ? T.accent : T.border}" opacity=".95"/>`;
+      out += `<text x="${p.mid.x}" y="${p.mid.y + 3.5}" text-anchor="middle" font-family="${FONT}" font-size="10" fill="${T.text}">${esc(txt)}</text>`;
+    }
+    out += `</g>`;
+  });
+  // connectors
+  state.connectors.forEach(c => out += connSvg(c, T, interactive));
+  // rubber band while wiring
+  if (interactive && wiring){
+    const a = pinPos(wiring.c, wiring.p);
+    out += `<line x1="${a.x}" y1="${a.y}" x2="${mouseWorld.x}" y2="${mouseWorld.y}" stroke="${T.accent}" stroke-width="2" stroke-dasharray="6 4" pointer-events="none"/>`;
+    out += `<circle cx="${a.x}" cy="${a.y}" r="9" fill="none" stroke="${T.accent}" stroke-width="2" pointer-events="none"/>`;
+  }
+  return out;
+}
+
+function connSvg(c, T, interactive){
+  const g = geom(c), isSel = interactive && sel && sel.type === 'conn' && sel.id === c.id;
+  const headTxt = textOn(c.color);
+  let s = `<g class="conn" data-conn="${c.id}" transform="translate(${c.x},${c.y}) rotate(${c.rot} ${g.w / 2} ${g.h / 2})">`;
+  s += `<rect class="body" width="${g.w}" height="${g.h}" rx="7" fill="${T.body}" stroke="${isSel ? T.accent : T.border}" stroke-width="${isSel ? 2.5 : 1.2}"/>`;
+  s += `<path class="body" d="M0,7a7,7 0 0 1 7,-7H${g.w - 7}a7,7 0 0 1 7,7V30H0Z" fill="${esc(c.color)}"/>`;
+  const kindTag = c.kind === 'connector' ? `${c.gender === 'M' ? 'M' : 'F'} \u00b7 ${c.pins}p` : c.kind === 'splice' ? 'SPLICE' : 'TERM';
+  s += `<text class="body" x="8" y="13" font-family="${FONT}" font-size="11" font-weight="700" fill="${headTxt}">${esc(trunc(c.des, 10))}</text>`;
+  s += `<text class="body" x="${g.w - 8}" y="13" text-anchor="end" font-family="${FONT}" font-size="9" fill="${headTxt}" opacity=".85">${kindTag}</text>`;
+  s += `<text class="body" x="8" y="25" font-family="${FONT}" font-size="9" fill="${headTxt}" opacity=".85">${esc(trunc(c.pn || c.name || c.mfr || '', g.w / 5.5))}</text>`;
+  if (c.backshell && c.backshell !== 'None'){
+    const bx = c.kind !== 'splice' && g.rows === 1 && c.side === 'left' ? g.w : -6;
+    s += `<rect class="body" x="${bx}" y="34" width="6" height="${g.h - 40}" rx="2" fill="${T.sub}" opacity=".6"/>`;
+  }
+  for (let i = 0; i < c.pins; i++){
+    const p = pinLocal(c, i, g), pd = c.pinData[i] || {}, ws = wiresOnPin(c.id, i);
+    const fill = ws.length ? colorHex(ws[0].color) : (pd.unused ? 'none' : (c.gender === 'M' ? T.pin : T.body));
+    const isWiringSrc = interactive && wiring && wiring.c === c.id && wiring.p === i;
+    s += `<g class="pin" data-conn="${c.id}" data-pin="${i}">`;
+    s += `<rect x="${p.x - 10}" y="${p.y - PIN_H / 2}" width="20" height="${PIN_H}" fill="transparent"/>`;
+    s += `<circle class="pc" cx="${p.x}" cy="${p.y}" r="5.5" fill="${fill}" stroke="${isWiringSrc ? T.accent : T.pin}" stroke-width="${isWiringSrc ? 3 : 1.5}" ${pd.unused ? 'stroke-dasharray="2 2"' : ''}/>`;
+    s += `</g>`;
+    if (i > 0 && g.rows === 1 && c.kind !== 'splice')
+      s += `<line x1="6" x2="${g.w - 6}" y1="${p.y - PIN_H / 2}" y2="${p.y - PIN_H / 2}" stroke="${T.border}" stroke-opacity=".35"/>`;
+    const nm = pinName(c, i), lbl = pd.label || '';
+    const tcol = pd.unused ? T.sub : T.text;
+    if (c.kind === 'splice'){
+      s += `<text class="body" x="${p.x}" y="${p.y + 16}" text-anchor="middle" font-family="${FONT}" font-size="9" fill="${T.sub}">${ws.length} wires</text>`;
+    } else if (g.rows === 1){
+      const left = c.side === 'left';
+      s += `<text class="body" x="${left ? 24 : g.w - 24}" y="${p.y + 3.5}" text-anchor="${left ? 'start' : 'end'}" font-family="${FONT}" font-size="9" font-weight="600" fill="${T.sub}">${esc(nm)}</text>`;
+      s += `<text class="body" x="${left ? g.w - 10 : 10}" y="${p.y + 3.5}" text-anchor="${left ? 'end' : 'start'}" font-family="${FONT}" font-size="10" fill="${tcol}">${esc(trunc(pd.unused ? '(n/c)' : lbl, 15))}</text>`;
+    } else {
+      const left = p.col === 0;
+      s += `<text class="body" x="${left ? 22 : g.w - 22}" y="${p.y + 3.5}" text-anchor="${left ? 'start' : 'end'}" font-family="${FONT}" font-size="9" font-weight="600" fill="${T.sub}">${esc(nm)}</text>`;
+      s += `<text class="body" x="${left ? 38 : g.w - 38}" y="${p.y + 3.5}" text-anchor="${left ? 'start' : 'end'}" font-family="${FONT}" font-size="10" fill="${tcol}">${esc(trunc(pd.unused ? '(n/c)' : lbl, 9))}</text>`;
+    }
+  }
+  if (c.rows === 2 && c.kind === 'connector') s += `<line x1="${g.w / 2}" x2="${g.w / 2}" y1="36" y2="${g.h - 6}" stroke="${T.border}" stroke-opacity=".5"/>`;
+  s += `</g>`;
+  return s;
+}
+
+function updateHint(){
+  const h = document.getElementById('hint');
+  if (wiring) h.textContent = `Wiring from ${pinRef(wiring.c, wiring.p)} - click or release on a target pin (Esc to cancel)`;
+  else if (sel && sel.type === 'conn') h.textContent = `${getConn(sel.id).des} selected - drag to move, R to rotate, Ctrl+D duplicate, Del delete`;
+  else if (sel && sel.type === 'wire') h.textContent = `${getWire(sel.id).wid} selected - edit in the properties panel, Del to delete`;
+  else h.textContent = `Zoom ${Math.round(view.z * 100)}% - drag background to pan, wheel to zoom, drag pin to pin to add a wire`;
+}
+
+/* ------------------------------------------------------------------ canvas interaction */
+function toWorld(e){
+  const r = svg.getBoundingClientRect();
+  return {x:(e.clientX - r.left - view.x) / view.z, y:(e.clientY - r.top - view.y) / view.z};
+}
+const snapV = v => state.project.snap ? Math.round(v / 10) * 10 : v;
+
+svg.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  const w = toWorld(e); mouseWorld = w;
+  const pinEl = e.target.closest('.pin'), wireEl = e.target.closest('.wire'), connEl = e.target.closest('.conn');
+  if (pinEl){
+    const cid = pinEl.dataset.conn, p = +pinEl.dataset.pin;
+    if (wiring && wiring.click){ finishWire(cid, p); return; }
+    wiring = {c:cid, p, click:false};
+    renderCanvas(); e.preventDefault(); return;
+  }
+  if (wiring){ wiring = null; renderCanvas(); }
+  if (wireEl){ select({type:'wire', id:wireEl.dataset.wire}); return; }
+  if (connEl){
+    const c = getConn(connEl.dataset.conn);
+    if (!(sel && sel.id === c.id)) select({type:'conn', id:c.id});
+    drag = {id:c.id, ox:w.x - c.x, oy:w.y - c.y, snap:JSON.stringify(state), moved:false};
+    e.preventDefault(); return;
+  }
+  pan = {sx:e.clientX, sy:e.clientY, vx:view.x, vy:view.y, moved:false};
+  svg.classList.add('panning');
+});
+window.addEventListener('mousemove', e => {
+  if (!drag && !pan && !wiring) return;
+  mouseWorld = toWorld(e);
+  if (drag){
+    const c = getConn(drag.id); if (!c) return;
+    const nx = snapV(mouseWorld.x - drag.ox), ny = snapV(mouseWorld.y - drag.oy);
+    if (nx === c.x && ny === c.y) return;
+    if (!drag.moved){ drag.moved = true; undoStack.push(drag.snap); redoStack = []; }
+    c.x = nx; c.y = ny; renderCanvas();
+  } else if (pan){
+    const dx = e.clientX - pan.sx, dy = e.clientY - pan.sy;
+    if (Math.abs(dx) + Math.abs(dy) > 3) pan.moved = true;
+    view.x = pan.vx + dx; view.y = pan.vy + dy; renderCanvas();
+  } else if (wiring){ renderCanvas(); }
+});
+window.addEventListener('mouseup', e => {
+  if (drag){ const moved = drag.moved; drag = null; if (moved){ if (state.project.autoLength) estimateLengths(wiresOnConn(sel.id)); renderBottom(); renderProps(); save(); } return; }
+  if (pan){ const moved = pan.moved; pan = null; svg.classList.remove('panning'); if (!moved && sel){ select(null); } return; }
+  if (wiring && !wiring.click){
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const pinEl = el && el.closest && el.closest('#cv .pin');
+    if (pinEl){
+      const cid = pinEl.dataset.conn, p = +pinEl.dataset.pin;
+      if (cid === wiring.c && p === wiring.p){ wiring.click = true; renderCanvas(); return; }
+      finishWire(cid, p); return;
+    }
+    wiring = null; renderCanvas();
+  }
+});
+svg.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = svg.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  zoomAt(mx, my, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+}, {passive:false});
+function zoomAt(mx, my, f){
+  const nz = clamp(view.z * f, 0.15, 4);
+  const wx = (mx - view.x) / view.z, wy = (my - view.y) / view.z;
+  view.z = nz; view.x = mx - wx * nz; view.y = my - wy * nz; renderCanvas();
+}
+function fitView(){
+  if (!state.connectors.length){ view = {x:60,y:40,z:1}; renderCanvas(); return; }
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  state.connectors.forEach(c => { const g = geom(c), cx = c.x + g.w / 2, cy = c.y + g.h / 2;
+    const hw = (c.rot % 180 ? g.h : g.w) / 2, hh = (c.rot % 180 ? g.w : g.h) / 2;
+    x0 = Math.min(x0, cx - hw); x1 = Math.max(x1, cx + hw); y0 = Math.min(y0, cy - hh); y1 = Math.max(y1, cy + hh); });
+  const r = svg.getBoundingClientRect(), padding = 60;
+  const z = clamp(Math.min((r.width - padding * 2) / (x1 - x0), (r.height - padding * 2) / (y1 - y0)), 0.2, 1.6);
+  view.z = z; view.x = (r.width - (x1 - x0) * z) / 2 - x0 * z; view.y = (r.height - (y1 - y0) * z) / 2 - y0 * z;
+  renderCanvas();
+}
+
+function finishWire(cid, p){
+  const src = wiring; wiring = null;
+  if (!src || (src.c === cid && src.p === p)){ renderCanvas(); return; }
+  if (state.wires.some(w => (w.from.c === src.c && w.from.p === src.p && w.to.c === cid && w.to.p === p) || (w.to.c === src.c && w.to.p === src.p && w.from.c === cid && w.from.p === p))){
+    renderCanvas(); return;
+  }
+  checkpoint();
+  const w = blankWire();
+  w.wid = nextWid(); w.from = {c:src.c, p:src.p}; w.to = {c:cid, p};
+  const a = getConn(src.c).pinData[src.p], b = getConn(cid).pinData[p];
+  w.signal = (a && a.label) || (b && b.label) || '';
+  state.wires.push(w);
+  renderCanvas();
+  if (state.project.autoLength) estimateLengths([w]);
+  select({type:'wire', id:w.id});
+}
+
+function estimateLengths(wires){
+  renderCanvas();
+  wires.forEach(w => {
+    const el = vp.querySelector(`[data-wire="${w.id}"] .base`);
+    if (el) w.length = Math.max(10, Math.round(el.getTotalLength() * state.project.scale / 5) * 5);
+  });
+}
+
+function select(s){ sel = s; if (s && s.type === 'wire') { const b = state.bundles.find(b => b.wires.includes(s.id)); if (b && activeTab === 'bundles') activeBundle = b.id; } renderAll(); }
+
+/* library drag & drop */
+svg.addEventListener('dragover', e => e.preventDefault());
+svg.addEventListener('drop', e => {
+  e.preventDefault();
+  const d = e.dataTransfer.getData('text/plain'); if (!d) return;
+  const [g, i] = d.split(':').map(Number);
+  const w = toWorld(e);
+  addFromTemplate(LIB[g].items[i], w.x - 60, w.y - 20);
+});
+
+/* ------------------------------------------------------------------ components */
+function addFromTemplate(t, x, y){
+  checkpoint();
+  const c = Object.assign(blankConn(), {
+    kind:t.kind || 'connector', name:t.label, mfr:t.mfr || '', pn:t.pn || '', pins:t.pins, rows:t.rows || 1, pitch:t.pitch || 0,
+    color:t.color || '#2b2b2b', gender:t.gender || 'F', termPn:t.termPn || '', awgThick:t.awgThick || 16, awgThin:t.awgThin || 28,
+    sealed:!!t.sealed, sealPn:t.sealPn || '', plugPn:t.plugPn || '', numbering:t.rows === 2 ? 'odd-even' : 'seq'
+  });
+  c.des = nextDes(t.des || desPrefix(c));
+  if (x == null){
+    const r = svg.getBoundingClientRect();
+    x = (r.width / 2 - view.x) / view.z - 70 + (state.connectors.length % 5) * 20;
+    y = (r.height / 2 - view.y) / view.z - 50 + (state.connectors.length % 5) * 20;
+  }
+  c.x = snapV(x); c.y = snapV(y);
+  normalizeConn(c);
+  state.connectors.push(c);
+  select({type:'conn', id:c.id});
+}
+function deleteSelection(){
+  if (!sel) return;
+  checkpoint();
+  if (sel.type === 'conn'){ state.wires = state.wires.filter(w => w.from.c !== sel.id && w.to.c !== sel.id); state.connectors = state.connectors.filter(c => c.id !== sel.id); }
+  else state.wires = state.wires.filter(w => w.id !== sel.id);
+  const ids = new Set(state.wires.map(w => w.id));
+  state.bundles.forEach(b => b.wires = b.wires.filter(id => ids.has(id)));
+  sel = null; renderAll();
+}
+function duplicateSel(){
+  if (!sel || sel.type !== 'conn') return;
+  checkpoint();
+  const c = JSON.parse(JSON.stringify(getConn(sel.id)));
+  c.id = uid(); c.des = nextDes(desPrefix(c)); c.x += 40; c.y += 40;
+  state.connectors.push(c); select({type:'conn', id:c.id});
+}
+function rotateSel(){
+  if (!sel || sel.type !== 'conn') return;
+  checkpoint();
+  const c = getConn(sel.id); c.rot = (c.rot + 90) % 360;
+  if (state.project.autoLength){ renderCanvas(); estimateLengths(wiresOnConn(c.id)); }
+  renderAll();
+}
+function autoLabel(){
+  checkpoint();
+  const counters = {};
+  [...state.connectors].sort((a, b) => a.x - b.x || a.y - b.y).forEach(c => { const p = desPrefix(c); counters[p] = (counters[p] || 0) + 1; c.des = p + counters[p]; });
+  const order = [...state.wires].sort((a, b) => {
+    const ca = getConn(a.from.c), cb = getConn(b.from.c);
+    return (ca.des.localeCompare(cb.des, undefined, {numeric:true})) || a.from.p - b.from.p;
+  });
+  order.forEach((w, i) => w.wid = 'W' + (i + 1));
+  renderAll();
+}
+
+/* ------------------------------------------------------------------ properties panel */
+const opts = (list, val) => list.map(o => { const [v, t] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}" ${String(v) === String(val) ? 'selected' : ''}>${esc(t)}</option>`; }).join('');
+const F = {
+  text:(sc, k, label, v, cls = '', ex = '') => `<label class="fld ${cls}"><span>${label}</span><input type="text" data-scope="${sc}" data-k="${k}" value="${esc(v)}" ${ex}></label>`,
+  num:(sc, k, label, v, cls = '', ex = '') => `<label class="fld ${cls}"><span>${label}</span><input type="number" data-num data-scope="${sc}" data-k="${k}" value="${esc(v)}" ${ex}></label>`,
+  sel:(sc, k, label, v, list, cls = '', ex = '') => `<label class="fld ${cls}"><span>${label}</span><select data-scope="${sc}" data-k="${k}" ${ex}>${opts(list, v)}</select></label>`,
+  chk:(sc, k, label, v, cls = '') => `<label class="fld chk ${cls}"><input type="checkbox" data-scope="${sc}" data-k="${k}" ${v ? 'checked' : ''}><span>${label}</span></label>`,
+  color:(sc, k, label, v, cls = '') => `<label class="fld ${cls}"><span>${label}</span><input type="color" data-scope="${sc}" data-k="${k}" value="${esc(v)}"></label>`,
+  area:(sc, k, label, v, cls = 'full') => `<label class="fld ${cls}"><span>${label}</span><textarea data-scope="${sc}" data-k="${k}">${esc(v)}</textarea></label>`,
+  date:(sc, k, label, v, cls = '') => `<label class="fld ${cls}"><span>${label}</span><input type="date" data-scope="${sc}" data-k="${k}" value="${esc(v)}"></label>`
+};
+const awgOpts = AWG.map(g => [g.awg, `${g.awg} AWG (${g.mm2} mm\u00b2)`]);
+const colorOpts = Object.entries(COLORS).map(([k, v]) => [k, `${k} - ${v.n}`]);
+
+function renderProps(){
+  const el = document.getElementById('props');
+  if (sel && sel.type === 'conn') el.innerHTML = connProps(getConn(sel.id));
+  else if (sel && sel.type === 'wire') el.innerHTML = wireProps(getWire(sel.id));
+  else el.innerHTML = projectProps();
+}
+
+function connProps(c){
+  const isConn = c.kind === 'connector', g = geom(c);
+  const ws = wiresOnConn(c.id);
+  let h = `<h3>${c.kind === 'splice' ? 'Splice' : c.kind === 'terminal' ? 'Terminal' : 'Connector'} ${esc(c.des)}</h3>`;
+  h += `<div class="section"><div class="section-title">Identity</div><div class="grid2">
+    ${F.text('conn','des','Designator',c.des)}
+    ${F.sel('conn','kind','Type',c.kind,[['connector','Connector'],['terminal','Terminal'],['splice','Splice']],'','data-rerender')}
+    ${F.text('conn','name','Name / description',c.name,'full')}
+    ${F.text('conn','mfr','Manufacturer',c.mfr)}
+    ${F.text('conn','pn','Part number',c.pn)}
+    ${F.color('conn','color','Housing color',c.color)}
+    ${isConn ? F.sel('conn','gender','Gender',c.gender,[['F','Female (receptacle)'],['M','Male (plug / header)']]) : '<div></div>'}
+  </div></div>`;
+  h += `<div class="section"><div class="section-title">Layout</div><div class="grid2">
+    ${F.num('conn','pins',isConn ? 'Pin count' : 'Nodes',c.pins,'','min="1" max="96" data-lazy data-rerender')}
+    ${isConn ? F.sel('conn','rows','Rows',c.rows,[[1,'1 row'],[2,'2 rows']],'','data-num data-rerender') : '<div></div>'}
+    ${isConn ? F.sel('conn','numbering','Pin numbering',c.numbering,[['seq','Sequential by column'],['odd-even','Odd / even (zig-zag)']]) : ''}
+    ${isConn ? F.sel('conn','pinNames','Pin names',c.pinNames,[['numeric','1, 2, 3 ...'],['alpha','A, B, C ...']]) : ''}
+    ${c.kind !== 'splice' && g.rows === 1 ? F.sel('conn','side','Pin side',c.side,[['right','Right'],['left','Left']]) : ''}
+    ${F.sel('conn','rot','Rotation',c.rot,[[0,'0 deg'],[90,'90 deg'],[180,'180 deg'],[270,'270 deg']],'','data-num')}
+    ${isConn ? F.num('conn','pitch','Pitch (mm)',c.pitch,'','step="0.01" min="0"') : ''}
+  </div></div>`;
+  h += `<div class="section"><div class="section-title">Terminals, seals &amp; accessories</div><div class="grid2">
+    ${c.kind === 'connector' ? F.text('conn','termPn','Default terminal / contact P/N',c.termPn,'full') : ''}
+    ${F.sel('conn','awgThick','Thickest wire',c.awgThick,awgOpts,'','data-num')}
+    ${F.sel('conn','awgThin','Thinnest wire',c.awgThin,awgOpts,'','data-num')}
+    ${isConn ? F.chk('conn','sealed','Sealed connector',c.sealed,'full') : ''}
+    ${isConn && c.sealed ? F.text('conn','sealPn','Wire seal P/N',c.sealPn) + F.text('conn','plugPn','Cavity plug P/N',c.plugPn) : ''}
+    ${c.kind !== 'splice' ? F.sel('conn','backshell','Backshell / boot',c.backshell,BACKSHELLS) + F.text('conn','backshellPn','Backshell P/N',c.backshellPn) : ''}
+    ${c.kind !== 'splice' ? F.sel('conn','mounting','Mounting',c.mounting,MOUNTING,'full') : ''}
+    ${F.area('conn','notes','Notes',c.notes)}
+  </div></div>`;
+  if (c.kind !== 'splice'){
+    h += `<div class="section"><div class="section-title">Pins <span class="muted" style="font-weight:400">(${c.pins})</span></div>
+      <table class="tbl pintbl"><thead><tr><th>#</th><th>Signal / label</th>${c.kind === 'connector' ? '<th>Terminal P/N</th>' : ''}${c.sealed ? '<th title="Wire seal / cavity plug">Seal</th>' : ''}<th title="Not connected">N/C</th><th>Wire</th></tr></thead><tbody>`;
+    for (let i = 0; i < c.pins; i++){
+      const pd = c.pinData[i], pw = wiresOnPin(c.id, i);
+      h += `<tr><td><b>${esc(pinName(c, i))}</b></td>
+        <td><input type="text" data-scope="pin" data-i="${i}" data-k="label" value="${esc(pd.label)}" placeholder="signal"></td>
+        ${c.kind === 'connector' ? `<td><input type="text" data-scope="pin" data-i="${i}" data-k="term" value="${esc(pd.term)}" placeholder="${esc(c.termPn || 'default')}"></td>` : ''}
+        ${c.sealed ? `<td><input type="checkbox" data-scope="pin" data-i="${i}" data-k="seal" ${pd.seal ? 'checked' : ''}></td>` : ''}
+        <td><input type="checkbox" data-scope="pin" data-i="${i}" data-k="unused" ${pd.unused ? 'checked' : ''}></td>
+        <td>${pw.map(w => `<a href="#" data-act="select-wire" data-id="${w.id}" style="color:inherit"><span class="cdot" style="background:${colorHex(w.color)}"></span> ${esc(w.wid)}</a>`).join(' ')}</td></tr>`;
+    }
+    h += `</tbody></table>
+      <div class="row-btns"><button class="btn sm" data-act="pins-from-wires">Copy signals from wires</button><button class="btn sm" data-act="pins-clear">Clear labels</button></div></div>`;
+  } else {
+    h += `<div class="section"><div class="section-title">Connected wires</div>${ws.length ? ws.map(w => `<div><a href="#" data-act="select-wire" data-id="${w.id}" style="color:inherit"><span class="cdot" style="background:${colorHex(w.color)}"></span> ${esc(w.wid)} ${esc(w.signal)} - ${w.awg} AWG</a></div>`).join('') : '<span class="muted">None yet. Drag a wire onto the splice node.</span>'}</div>`;
+  }
+  h += `<div class="row-btns"><button class="btn" data-act="duplicate">Duplicate</button><button class="btn" data-act="rotate">Rotate 90 deg</button><button class="btn danger" data-act="delete">Delete</button></div>`;
+  return h;
+}
+
+function wireProps(w){
+  const groups = [...new Set(state.wires.map(x => x.group).filter(Boolean))];
+  const bundle = state.bundles.filter(b => b.wires.includes(w.id)).map(b => b.name).join(', ');
+  const cut = (+w.length || 0) + (+w.loop || 0);
+  let h = `<h3>Wire ${esc(w.wid)}</h3>`;
+  h += `<div class="section"><div class="section-title"><span class="cdot" style="background:${colorHex(w.color)};width:14px;height:14px"></span> Connection</div>
+    <div class="kv"><b>From</b><span>${esc(pinRef(w.from.c, w.from.p))} ${esc(getConn(w.from.c).pinData[w.from.p].label)}</span>
+    <b>To</b><span>${esc(pinRef(w.to.c, w.to.p))} ${esc(getConn(w.to.c).pinData[w.to.p].label)}</span>
+    <b>Bundle</b><span>${esc(bundle || '-')}</span><b>Cut length</b><span>${cut} mm</span></div>
+    <div class="row-btns"><button class="btn sm" data-act="wire-swap">Swap ends</button><button class="btn sm" data-act="select-conn" data-id="${w.from.c}">Go to ${esc(getConn(w.from.c).des)}</button><button class="btn sm" data-act="select-conn" data-id="${w.to.c}">Go to ${esc(getConn(w.to.c).des)}</button></div></div>`;
+  h += `<div class="section"><div class="section-title">Identification</div><div class="grid2">
+    ${F.text('wire','wid','Wire ID',w.wid)}
+    ${F.text('wire','signal','Signal name',w.signal)}
+    ${F.chk('wire','markers','Wire markers on both ends',w.markers,'full')}
+  </div></div>`;
+  h += `<div class="section"><div class="section-title">Conductor &amp; insulation</div><div class="grid2">
+    ${F.sel('wire','awg','Gauge',w.awg,awgOpts,'full','data-num')}
+    ${F.sel('wire','color','Base color',w.color,colorOpts)}
+    ${F.sel('wire','stripe','Stripe / tracer',w.stripe,[['','None'], ...colorOpts])}
+    ${F.sel('wire','insulation','Insulation',w.insulation,INSULATION)}
+    ${F.sel('wire','voltage','Voltage rating',w.voltage,VOLTAGES)}
+    ${F.sel('wire','temp','Temperature rating',w.temp,TEMPS,'full')}
+  </div></div>`;
+  h += `<div class="section"><div class="section-title">Length &amp; preparation</div><div class="grid2">
+    ${F.num('wire','length','Length (mm)',w.length,'','min="0" step="5"')}
+    ${F.num('wire','loop','Service loop (mm)',w.loop,'','min="0" step="5"')}
+    ${F.num('wire','stripA','Strip end A (mm)',w.stripA,'','min="0" step="0.5"')}
+    ${F.num('wire','stripB','Strip end B (mm)',w.stripB,'','min="0" step="0.5"')}
+  </div><div class="row-btns"><button class="btn sm" data-act="wire-estimate">Estimate length from drawing</button></div></div>`;
+  h += `<div class="section"><div class="section-title">Twist / shield group</div><div class="grid2">
+    ${F.sel('wire','groupType','Group type',w.groupType,GROUP_TYPES,'','data-rerender')}
+    <label class="fld"><span>Group name</span><input type="text" list="groupList" data-scope="wire" data-k="group" value="${esc(w.group)}" placeholder="e.g. CAN"><datalist id="groupList">${groups.map(g => `<option value="${esc(g)}">`).join('')}</datalist></label>
+    ${w.groupType.startsWith('twisted') ? F.num('wire','twistRate','Twist rate (turns/m)',w.twistRate,'full','min="0"') : ''}
+  </div></div>`;
+  h += `<div class="section">${F.area('wire','notes','Notes',w.notes)}</div>`;
+  h += `<div class="row-btns"><button class="btn" data-act="wire-defaults">Use as default for new wires</button><button class="btn danger" data-act="delete">Delete wire</button></div>`;
+  return h;
+}
+
+function projectProps(){
+  const p = state.project, d = p.defaults;
+  const total = state.wires.reduce((s, w) => s + (+w.length || 0) + (+w.loop || 0), 0);
+  let h = `<h3>Harness / project</h3>`;
+  h += `<div class="section"><div class="section-title">Title block</div><div class="grid2">
+    ${F.text('project','name','Harness name',p.name,'full')}
+    ${F.text('project','rev','Revision',p.rev)}
+    ${F.date('project','date','Date',p.date)}
+    ${F.text('project','author','Author',p.author)}
+    ${F.text('project','customer','Customer / project',p.customer)}
+    ${F.area('project','description','Description',p.description)}
+  </div></div>`;
+  h += `<div class="section"><div class="section-title">Drawing</div><div class="grid2">
+    ${F.sel('project','routing','Wire routing',p.routing,[['curved','Curved'],['ortho','Orthogonal'],['straight','Straight']])}
+    ${F.num('project','scale','Scale (mm per drawing unit)',p.scale,'','step="0.1" min="0.1"')}
+    ${F.chk('project','snap','Snap to grid',p.snap)}
+    ${F.chk('project','showGrid','Show grid',p.showGrid)}
+    ${F.chk('project','showLabels','Show wire labels',p.showLabels)}
+    ${F.chk('project','autoLength','Auto-estimate lengths',p.autoLength)}
+    ${F.num('project','waste','Wire waste allowance (%)',p.waste,'full','min="0" max="100"')}
+  </div></div>`;
+  h += `<div class="section"><div class="section-title">Defaults for new wires</div><div class="grid2">
+    ${F.sel('defaults','awg','Gauge',d.awg,awgOpts,'full','data-num')}
+    ${F.sel('defaults','color','Color',d.color,colorOpts)}
+    ${F.sel('defaults','stripe','Stripe',d.stripe,[['','None'], ...colorOpts])}
+    ${F.sel('defaults','insulation','Insulation',d.insulation,INSULATION)}
+    ${F.sel('defaults','voltage','Voltage',d.voltage,VOLTAGES)}
+    ${F.sel('defaults','temp','Temperature',d.temp,TEMPS)}
+    ${F.num('defaults','strip','Strip length (mm)',d.strip,'','min="0" step="0.5"')}
+  </div></div>`;
+  h += `<div class="section"><div class="section-title">Summary</div><div class="kv">
+    <b>Connectors</b><span>${state.connectors.filter(c => c.kind === 'connector').length}</span>
+    <b>Terminals</b><span>${state.connectors.filter(c => c.kind === 'terminal').length}</span>
+    <b>Splices</b><span>${state.connectors.filter(c => c.kind === 'splice').length}</span>
+    <b>Wires</b><span>${state.wires.length}</span>
+    <b>Total wire</b><span>${(total / 1000).toFixed(2)} m (+${p.waste}% waste)</span>
+    <b>Bundles</b><span>${state.bundles.length}</span></div></div>`;
+  h += `<div class="section"><div class="section-title">Shortcuts</div><div class="kv">
+    <b><span class="kbd">Drag pin to pin</span></b><span>Create wire</span>
+    <b><span class="kbd">Click pin, click pin</span></b><span>Create wire</span>
+    <b><span class="kbd">Del</span></b><span>Delete selection</span>
+    <b><span class="kbd">R</span></b><span>Rotate connector</span>
+    <b><span class="kbd">Ctrl+D</span></b><span>Duplicate connector</span>
+    <b><span class="kbd">Ctrl+Z / Ctrl+Y</span></b><span>Undo / redo</span>
+    <b><span class="kbd">Ctrl+S</span></b><span>Save project file</span>
+    <b><span class="kbd">F</span></b><span>Fit drawing</span>
+    <b><span class="kbd">Esc</span></b><span>Cancel / deselect</span></div></div>`;
+  return h;
+}
+
+/* ------------------------------------------------------------------ property binding */
+function bindTarget(el){
+  const s = el.dataset.scope;
+  if (s === 'project') return state.project;
+  if (s === 'defaults') return state.project.defaults;
+  if (s === 'conn') return sel && getConn(sel.id);
+  if (s === 'pin'){ const c = sel && getConn(sel.id); return c && c.pinData[+el.dataset.i]; }
+  if (s === 'wire') return sel && getWire(sel.id);
+  if (s === 'bundle') return state.bundles.find(b => b.id === el.dataset.id);
+  if (s === 'acc') return state.accessories.find(a => a.id === el.dataset.id);
+  return null;
+}
+function readVal(el){
+  if (el.type === 'checkbox') return el.checked;
+  if ('num' in el.dataset){ const v = parseFloat(el.value); return isNaN(v) ? 0 : v; }
+  return el.value;
+}
+function applyField(el){
+  const t = bindTarget(el); if (!t || !el.dataset.k) return false;
+  const k = el.dataset.k, v = readVal(el);
+  if (t[k] === v) return false;
+  t[k] = v;
+  if (el.dataset.scope === 'conn' && ['pins','rows','kind'].includes(k)){
+    const c = t;
+    if (k === 'kind' && c.kind !== 'connector'){ c.rows = 1; c.sealed = false; }
+    normalizeConn(c);
+  }
+  return true;
+}
+function onFieldInput(e){
+  const el = e.target; if (!el.dataset || !el.dataset.scope || 'lazy' in el.dataset || el.type === 'checkbox' || el.tagName === 'SELECT') return;
+  if (applyField(el)){ renderCanvas(); if (el.closest('#props')) renderBottom(); else renderProps(); updateTitle(); save(); }
+}
+function onFieldChange(e){
+  const el = e.target; if (!el.dataset || !el.dataset.scope) return;
+  if (!pendingSnap) pendingSnap = JSON.stringify(state);
+  applyField(el);
+  const now = JSON.stringify(state);
+  if (pendingSnap !== now){ undoStack.push(pendingSnap); redoStack = []; }
+  pendingSnap = document.activeElement === el ? now : null;
+  if (state.project.autoLength && el.dataset.scope === 'conn' && ['rot','pins','rows','side','kind','numbering'].includes(el.dataset.k) && sel){ renderCanvas(); estimateLengths(wiresOnConn(sel.id)); }
+  if (el.dataset.scope === 'project' && el.dataset.k === 'routing' && state.project.autoLength){ renderCanvas(); estimateLengths(state.wires); }
+  renderCanvas(); updateTitle(); save();
+  const inProps = !!el.closest('#props');
+  if (inProps){ if ('rerender' in el.dataset || el.type === 'checkbox' || el.tagName === 'SELECT') renderProps(); renderBottom(); }
+  else { renderProps(); if (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'color') renderBottom(); }
+}
+['props','bottom'].forEach(id => {
+  const root = document.getElementById(id);
+  root.addEventListener('focusin', e => { if (e.target.dataset && e.target.dataset.scope) pendingSnap = JSON.stringify(state); });
+  root.addEventListener('input', onFieldInput);
+  root.addEventListener('change', onFieldChange);
+});
+
+/* ------------------------------------------------------------------ BOM, wire list, validation */
+function wireListRows(){
+  return state.wires.map(w => {
+    const bundle = state.bundles.filter(b => b.wires.includes(w.id)).map(b => b.name).join(' ');
+    return {w, Wire:w.wid, Signal:w.signal, From:pinRef(w.from.c, w.from.p), To:pinRef(w.to.c, w.to.p), AWG:w.awg, 'mm2':awgInfo(w.awg).mm2,
+      Color:colorCode(w), Insulation:w.insulation, Voltage:w.voltage, Temp:w.temp, 'Length mm':+w.length || 0, 'Loop mm':+w.loop || 0,
+      'Cut mm':(+w.length || 0) + (+w.loop || 0), 'Strip A':w.stripA, 'Strip B':w.stripB,
+      Group:w.group && w.groupType !== 'none' ? `${w.group} (${GROUP_TYPES.find(g => g[0] === w.groupType)[1]})` : '', Bundle:bundle, Notes:w.notes};
+  }).sort((a, b) => String(a.Wire).localeCompare(String(b.Wire), undefined, {numeric:true}));
+}
+function bomRows(){
+  const rows = [], map = {};
+  const add = (cat, pn, desc, qty, unit, refs) => {
+    const key = cat + '|' + pn + '|' + desc + '|' + unit;
+    if (!map[key]){ map[key] = {Category:cat, 'Part number':pn, Description:desc, Qty:0, Unit:unit, Refs:[]}; rows.push(map[key]); }
+    map[key].Qty += qty; if (refs) map[key].Refs.push(refs);
+  };
+  state.connectors.forEach(c => {
+    const cat = c.kind === 'splice' ? 'Splice' : c.kind === 'terminal' ? 'Terminal' : 'Connector housing';
+    add(cat, c.pn, [c.mfr, c.name].filter(Boolean).join(' ') + (c.kind === 'connector' ? ` ${c.pins}p ${c.gender === 'M' ? 'male' : 'female'}` : ''), 1, 'pcs', c.des);
+    if (c.kind === 'connector'){
+      for (let i = 0; i < c.pins; i++){
+        const pd = c.pinData[i], used = wiresOnPin(c.id, i).length > 0;
+        if (used) add('Contact / terminal', pd.term || c.termPn || '(unspecified)', `Crimp contact for ${c.name || c.pn}`, 1, 'pcs', c.des);
+        if (c.sealed && pd.seal){
+          if (used && c.sealPn !== 'integral') add('Seal', c.sealPn || '(unspecified)', 'Wire seal', 1, 'pcs', c.des);
+          if (!used) add('Seal', c.plugPn || '(unspecified)', 'Cavity plug', 1, 'pcs', c.des);
+        }
+      }
+    }
+    if (c.backshell && c.backshell !== 'None') add('Backshell / boot', c.backshellPn, c.backshell, 1, 'pcs', c.des);
+  });
+  const waste = 1 + (+state.project.waste || 0) / 100;
+  state.wires.forEach(w => add('Wire', '', `${w.awg} AWG (${awgInfo(w.awg).mm2} mm\u00b2) ${COLORS[w.color].n}${w.stripe ? '/' + COLORS[w.stripe].n : ''} ${w.insulation} ${w.voltage} ${w.temp}`,
+    ((+w.length || 0) + (+w.loop || 0)) * waste / 1000, 'm', w.wid));
+  const groups = {};
+  state.wires.forEach(w => { if (w.group && w.groupType !== 'none'){ const k = w.group + '|' + w.groupType; (groups[k] = groups[k] || []).push(w); } });
+  Object.values(groups).forEach(ws => {
+    const t = ws[0].groupType, len = Math.max(...ws.map(w => (+w.length || 0) + (+w.loop || 0))) * waste / 1000;
+    if (t.startsWith('twisted')) add('Process', '', `Twisting ${ws.length} wires @ ${ws[0].twistRate} turns/m`, 1, 'op', ws[0].group);
+    if (t.endsWith('shielded')) add('Shield', '', 'Braided shield / foil with drain', len, 'm', ws[0].group);
+  });
+  const markers = state.wires.filter(w => w.markers).length * 2;
+  if (markers) add('Marker', '', 'Wire marker sleeve', markers, 'pcs');
+  state.bundles.forEach(b => { if (b.covering && b.covering !== 'None') add('Covering', b.coveringPn, b.covering, (+b.length || 0) / 1000, 'm', b.name); });
+  state.accessories.forEach(a => add('Accessory', a.pn, a.name, +a.qty || 0, a.unit));
+  rows.forEach(r => { r.Qty = r.Unit === 'm' ? +r.Qty.toFixed(3) : r.Qty; r.Refs = [...new Set(r.Refs)].join(' '); });
+  const order = ['Connector housing','Terminal','Splice','Contact / terminal','Seal','Backshell / boot','Wire','Shield','Process','Covering','Marker','Accessory'];
+  return rows.sort((a, b) => order.indexOf(a.Category) - order.indexOf(b.Category));
+}
+function validate(){
+  const out = [], push = (lvl, msg, ref) => out.push({lvl, msg, ref});
+  const des = {};
+  state.connectors.forEach(c => { (des[c.des] = des[c.des] || []).push(c); });
+  Object.entries(des).forEach(([d, cs]) => { if (cs.length > 1) push('error', `Designator ${d} is used by ${cs.length} components`, {type:'conn', id:cs[1].id}); });
+  const wids = {};
+  state.wires.forEach(w => { (wids[w.wid] = wids[w.wid] || []).push(w); });
+  Object.entries(wids).forEach(([d, ws]) => { if (ws.length > 1) push('error', `Wire ID ${d} is used ${ws.length} times`, {type:'wire', id:ws[1].id}); });
+  state.connectors.forEach(c => {
+    if (c.awgThick > c.awgThin) push('warn', `${c.des}: thickest wire gauge is set thinner than thinnest`, {type:'conn', id:c.id});
+    for (let i = 0; i < c.pins; i++){
+      const ws = wiresOnPin(c.id, i), pd = c.pinData[i];
+      if (c.kind === 'connector' && ws.length > 1) push('warn', `${c.des}:${pinName(c, i)} has ${ws.length} wires in one cavity (use a splice)`, {type:'conn', id:c.id});
+      if (pd.unused && ws.length) push('warn', `${c.des}:${pinName(c, i)} is marked N/C but has a wire`, {type:'conn', id:c.id});
+      if (!pd.unused && pd.label && !ws.length) push('info', `${c.des}:${pinName(c, i)} (${pd.label}) is not connected`, {type:'conn', id:c.id});
+      if (c.kind === 'connector' && c.sealed && !ws.length && !pd.unused) push('info', `${c.des}:${pinName(c, i)} is empty in a sealed connector - mark N/C and add a cavity plug`, {type:'conn', id:c.id});
+    }
+    if (c.kind === 'splice'){ const n = wiresOnConn(c.id).length; if (n < 2) push('warn', `Splice ${c.des} has ${n} wire(s)`, {type:'conn', id:c.id}); }
+    if (c.kind !== 'splice' && !wiresOnConn(c.id).length) push('info', `${c.des} has no wires`, {type:'conn', id:c.id});
+  });
+  state.wires.forEach(w => {
+    [w.from, w.to].forEach(end => {
+      const c = getConn(end.c);
+      if (w.awg < c.awgThick) push('error', `${w.wid}: ${w.awg} AWG is too thick for ${c.des} (max ${c.awgThick} AWG)`, {type:'wire', id:w.id});
+      else if (w.awg > c.awgThin) push('warn', `${w.wid}: ${w.awg} AWG is thinner than ${c.des} accepts (min ${c.awgThin} AWG)`, {type:'wire', id:w.id});
+    });
+    if (!(+w.length > 0)) push('warn', `${w.wid}: length is not set`, {type:'wire', id:w.id});
+    if (w.from.c === w.to.c && getConn(w.from.c).kind !== 'connector') push('warn', `${w.wid}: loops back to the same component`, {type:'wire', id:w.id});
+    if (w.groupType !== 'none' && !w.group) push('warn', `${w.wid}: ${w.groupType} group has no name`, {type:'wire', id:w.id});
+  });
+  const groups = {};
+  state.wires.forEach(w => { if (w.group && w.groupType.startsWith('twisted')) (groups[w.group] = groups[w.group] || []).push(w); });
+  Object.entries(groups).forEach(([g, ws]) => { if (ws.length !== 2) push('warn', `Twisted group ${g} has ${ws.length} wires (pair expected)`, {type:'wire', id:ws[0].id}); });
+  state.bundles.forEach(b => { if (!b.wires.length) push('info', `Bundle ${b.name} has no wires`); if (b.covering !== 'None' && !(+b.length > 0)) push('warn', `Bundle ${b.name}: covering length is not set`); });
+  const rank = {error:0, warn:1, info:2};
+  return out.sort((a, b) => rank[a.lvl] - rank[b.lvl]);
+}
+
+/* ------------------------------------------------------------------ bottom panel */
+const TABS = [['wires','Wire list'],['bom','BOM'],['bundles','Bundles'],['acc','Accessories'],['val','Validation']];
+function renderBottom(){
+  const issues = validate();
+  const nErr = issues.filter(i => i.lvl === 'error').length, nWarn = issues.filter(i => i.lvl === 'warn').length;
+  document.getElementById('tabs').innerHTML = TABS.map(([k, t]) => {
+    let badge = '';
+    if (k === 'wires') badge = `<span class="badge">${state.wires.length}</span>`;
+    if (k === 'bundles') badge = `<span class="badge">${state.bundles.length}</span>`;
+    if (k === 'acc') badge = `<span class="badge">${state.accessories.length}</span>`;
+    if (k === 'val') badge = `<span class="badge ${nErr ? 'err' : nWarn ? 'warn' : ''}">${nErr + nWarn}</span>`;
+    return `<button class="tab ${activeTab === k ? 'active' : ''}" data-act="tab" data-id="${k}">${t}${badge}</button>`;
+  }).join('') + `<div class="spacer"></div><button class="btn sm" style="margin-bottom:4px" data-act="toggle-bottom">${document.body.classList.contains('bottom-collapsed') ? 'Show panel' : 'Hide panel'}</button>`;
+  const body = document.getElementById('tabBody');
+  if (activeTab === 'wires') body.innerHTML = wireTable();
+  else if (activeTab === 'bom') body.innerHTML = bomTable();
+  else if (activeTab === 'bundles') body.innerHTML = bundlesView();
+  else if (activeTab === 'acc') body.innerHTML = accView();
+  else body.innerHTML = valView(issues);
+  document.getElementById('bUndo').disabled = !undoStack.length;
+  document.getElementById('bRedo').disabled = !redoStack.length;
+}
+function wireTable(){
+  const rows = wireListRows();
+  if (!rows.length) return `<p class="muted">No wires yet. Drag from one pin to another on the canvas.</p>`;
+  const cols = ['Wire','Signal','From','To','AWG','mm2','Color','Insulation','Length mm','Loop mm','Cut mm','Strip A','Strip B','Group','Bundle'];
+  return `<table class="tbl"><thead><tr>${cols.map(c => `<th class="${/mm|AWG|Strip|mm2/.test(c) ? 'num' : ''}">${c === 'mm2' ? 'mm\u00b2' : c}</th>`).join('')}</tr></thead><tbody>` +
+    rows.map(r => `<tr class="clickable ${sel && sel.id === r.w.id ? 'selected' : ''}" data-act="select-wire" data-id="${r.w.id}">${cols.map(c => {
+      if (c === 'Color') return `<td><span class="cdot" style="background:${colorHex(r.w.color)}"></span>${r.w.stripe ? `<span class="cdot" style="background:${colorHex(r.w.stripe)};margin-left:-4px"></span>` : ''} ${esc(r.Color)}</td>`;
+      return `<td class="${/mm|AWG|Strip|mm2/.test(c) ? 'num' : ''}">${esc(r[c])}</td>`;
+    }).join('')}</tr>`).join('') + `</tbody></table>`;
+}
+function bomTable(){
+  const rows = bomRows();
+  if (!rows.length) return `<p class="muted">The bill of materials is empty.</p>`;
+  return `<table class="tbl"><thead><tr><th>#</th><th>Category</th><th>Part number</th><th>Description</th><th class="num">Qty</th><th>Unit</th><th>References</th></tr></thead><tbody>` +
+    rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.Category)}</td><td>${esc(r['Part number'] || '-')}</td><td>${esc(r.Description)}</td><td class="num">${esc(r.Qty)}</td><td>${esc(r.Unit)}</td><td class="muted" style="white-space:normal">${esc(r.Refs)}</td></tr>`).join('') +
+    `</tbody></table><p class="muted" style="font-size:11px">Wire quantities include a ${state.project.waste}% waste allowance and service loops.</p>`;
+}
+function bundlesView(){
+  let h = `<div class="row-btns" style="margin:0 0 8px"><button class="btn sm primary" data-act="bundle-add">+ Add bundle</button><span class="muted" style="align-self:center;font-size:12px">Group wires into bundles with a covering. Click a card to highlight it on the canvas; click wire chips to add or remove them.</span></div><div class="cards">`;
+  state.bundles.forEach(b => {
+    h += `<div class="card ${activeBundle === b.id ? 'active' : ''}" data-act="bundle-focus" data-id="${b.id}"><div class="grid2">
+      <label class="fld"><span>Name</span><input type="text" data-scope="bundle" data-id="${b.id}" data-k="name" value="${esc(b.name)}"></label>
+      <label class="fld"><span>Highlight color</span><input type="color" data-scope="bundle" data-id="${b.id}" data-k="color" value="${esc(b.color)}"></label>
+      <label class="fld"><span>Covering</span><select data-scope="bundle" data-id="${b.id}" data-k="covering">${opts(COVERINGS, b.covering)}</select></label>
+      <label class="fld"><span>Covering P/N</span><input type="text" data-scope="bundle" data-id="${b.id}" data-k="coveringPn" value="${esc(b.coveringPn)}"></label>
+      <label class="fld"><span>Bundle length (mm)</span><input type="number" data-num min="0" step="5" data-scope="bundle" data-id="${b.id}" data-k="length" value="${esc(b.length)}"></label>
+      <div class="fld"><span>&nbsp;</span><div style="display:flex;gap:4px"><button class="btn sm" data-act="bundle-len" data-id="${b.id}" title="Longest wire in bundle">Use longest wire</button><button class="btn sm danger" data-act="bundle-del" data-id="${b.id}">Delete</button></div></div>
+    </div><div class="chips">${state.wires.map(w => `<span class="chip ${b.wires.includes(w.id) ? 'on' : ''}" data-act="bundle-toggle" data-id="${b.id}" data-w="${w.id}">${esc(w.wid)}</span>`).join('') || '<span class="muted">No wires</span>'}
+      ${state.wires.length ? `<span class="chip" data-act="bundle-all" data-id="${b.id}">all</span><span class="chip" data-act="bundle-none" data-id="${b.id}">none</span>` : ''}</div></div>`;
+  });
+  return h + `</div>`;
+}
+function accView(){
+  let h = `<div class="row-btns" style="margin:0 0 8px"><button class="btn sm primary" data-act="acc-add">+ Add item</button>
+    <select id="accPreset" style="width:auto"><option value="">Add preset...</option>${ACC_PRESETS.map((a, i) => `<option value="${i}">${esc(a.name)}</option>`).join('')}</select></div>`;
+  if (!state.accessories.length) return h + `<p class="muted">No accessories. Cable ties, heat shrink, labels and grommets added here go into the BOM.</p>`;
+  h += `<table class="tbl"><thead><tr><th>Item</th><th>Part number</th><th class="num">Qty</th><th>Unit</th><th></th></tr></thead><tbody>`;
+  state.accessories.forEach(a => {
+    h += `<tr><td><input type="text" data-scope="acc" data-id="${a.id}" data-k="name" value="${esc(a.name)}"></td>
+      <td><input type="text" data-scope="acc" data-id="${a.id}" data-k="pn" value="${esc(a.pn)}"></td>
+      <td style="width:90px"><input type="number" data-num step="any" min="0" data-scope="acc" data-id="${a.id}" data-k="qty" value="${esc(a.qty)}"></td>
+      <td style="width:90px"><select data-scope="acc" data-id="${a.id}" data-k="unit">${opts(['pcs','m','set','op'], a.unit)}</select></td>
+      <td style="width:40px"><button class="btn sm danger" data-act="acc-del" data-id="${a.id}">x</button></td></tr>`;
+  });
+  return h + `</tbody></table>`;
+}
+function valView(issues){
+  if (!issues.length) return `<p style="color:var(--ok);font-weight:600">No issues found. The harness passes all checks.</p>`;
+  return `<table class="tbl"><tbody>` + issues.map((i, n) => `<tr class="${i.ref ? 'clickable' : ''}" data-act="val-go" data-n="${n}"><td style="width:60px"><span class="lvl ${i.lvl}">${i.lvl.toUpperCase()}</span></td><td>${esc(i.msg)}</td></tr>`).join('') + `</tbody></table>`;
+}
+document.getElementById('bottom').addEventListener('change', e => {
+  if (e.target.id === 'accPreset' && e.target.value !== ''){
+    checkpoint(); const p = ACC_PRESETS[+e.target.value]; state.accessories.push(Object.assign({id:uid()}, p)); renderAll();
+  }
+});
+
+/* ------------------------------------------------------------------ actions */
+const ACTIONS = {
+  new(){ if (!confirm('Start a new empty harness? Unsaved changes in the current project will be replaced.')) return; checkpoint(); state = defaultState(); sel = null; activeBundle = null; view = {x:60,y:40,z:1}; renderAll(); },
+  open(){ document.getElementById('fileIn').click(); },
+  save(){ download(`${slug(state.project.name)}_rev${slug(state.project.rev)}.harness.json`, JSON.stringify(state, null, 2), 'application/json'); },
+  sample(){ if (state.connectors.length && !confirm('Replace the current harness with the example?')) return; checkpoint(); state = migrate(sampleHarness()); sel = null; renderAll(); requestAnimationFrame(fitView); },
+  undo, redo,
+  delete: deleteSelection, duplicate: duplicateSel, rotate: rotateSel, autolabel: autoLabel,
+  'estimate-all'(){ checkpoint(); estimateLengths(state.wires); renderAll(); },
+  'csv-wires'(){ const cols = ['Wire','Signal','From','To','AWG','mm2','Color','Insulation','Voltage','Temp','Length mm','Loop mm','Cut mm','Strip A','Strip B','Group','Bundle','Notes'];
+    download(`${slug(state.project.name)}_wirelist.csv`, toCSV(cols, wireListRows()), 'text/csv'); },
+  'csv-bom'(){ download(`${slug(state.project.name)}_bom.csv`, toCSV(['Category','Part number','Description','Qty','Unit','Refs'], bomRows()), 'text/csv'); },
+  svg(){ download(`${slug(state.project.name)}.svg`, exportSvg(), 'image/svg+xml'); },
+  png: exportPng,
+  print: doPrint,
+  theme(){ theme = theme === 'dark' ? 'light' : 'dark'; localStorage.setItem('whb.theme', theme); applyTheme(); renderCanvas(); },
+  fit: fitView,
+  'zoom-in'(){ const r = svg.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1.2); },
+  'zoom-out'(){ const r = svg.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1 / 1.2); },
+  'toggle-bottom'(){ document.body.classList.toggle('bottom-collapsed'); renderBottom(); },
+  tab(el){ activeTab = el.dataset.id; document.body.classList.remove('bottom-collapsed'); renderBottom(); },
+  'lib-add'(el){ addFromTemplate(LIB[+el.dataset.g].items[+el.dataset.i]); },
+  'lib-custom'(){ addFromTemplate({label:'Custom connector',pins:4,rows:1,color:'#3b4a6b',gender:'F',awgThick:16,awgThin:28}); },
+  'select-wire'(el){ select({type:'wire', id:el.dataset.id}); },
+  'select-conn'(el){ select({type:'conn', id:el.dataset.id}); },
+  'wire-swap'(){ const w = getWire(sel.id); checkpoint(); [w.from, w.to] = [w.to, w.from]; [w.stripA, w.stripB] = [w.stripB, w.stripA]; renderAll(); },
+  'wire-estimate'(){ checkpoint(); estimateLengths([getWire(sel.id)]); renderAll(); },
+  'wire-defaults'(){ const w = getWire(sel.id), d = state.project.defaults; checkpoint();
+    Object.assign(d, {awg:w.awg, color:w.color, stripe:w.stripe, insulation:w.insulation, voltage:w.voltage, temp:w.temp, strip:w.stripA}); renderAll(); },
+  'pins-from-wires'(){ const c = getConn(sel.id); checkpoint();
+    for (let i = 0; i < c.pins; i++){ const w = wiresOnPin(c.id, i)[0]; if (w && w.signal) c.pinData[i].label = w.signal; } renderAll(); },
+  'pins-clear'(){ const c = getConn(sel.id); checkpoint(); c.pinData.forEach(p => p.label = ''); renderAll(); },
+  'bundle-add'(){ checkpoint(); const b = {id:uid(), name:'B' + (state.bundles.length + 1), covering:'Braided sleeve (PET)', coveringPn:'', length:0, color:['#4f8cff','#22c55e','#f59e0b','#ec4899','#14b8a6'][state.bundles.length % 5], wires:[]};
+    if (sel && sel.type === 'wire') b.wires.push(sel.id);
+    state.bundles.push(b); activeBundle = b.id; renderAll(); },
+  'bundle-del'(el){ checkpoint(); state.bundles = state.bundles.filter(b => b.id !== el.dataset.id); fixSel(); renderAll(); },
+  'bundle-focus'(el, e){ if (e.target.closest('input,select,button,.chip')) return; activeBundle = activeBundle === el.dataset.id ? null : el.dataset.id; renderCanvas(); renderBottom(); },
+  'bundle-toggle'(el){ checkpoint(); const b = state.bundles.find(b => b.id === el.dataset.id), w = el.dataset.w;
+    b.wires = b.wires.includes(w) ? b.wires.filter(x => x !== w) : [...b.wires, w]; activeBundle = b.id; renderAll(); },
+  'bundle-all'(el){ checkpoint(); const b = state.bundles.find(b => b.id === el.dataset.id); b.wires = state.wires.map(w => w.id); activeBundle = b.id; renderAll(); },
+  'bundle-none'(el){ checkpoint(); const b = state.bundles.find(b => b.id === el.dataset.id); b.wires = []; renderAll(); },
+  'bundle-len'(el){ checkpoint(); const b = state.bundles.find(b => b.id === el.dataset.id);
+    b.length = Math.max(0, ...b.wires.map(id => getWire(id)).filter(Boolean).map(w => +w.length || 0)); renderAll(); },
+  'acc-add'(){ checkpoint(); state.accessories.push({id:uid(), name:'New item', pn:'', qty:1, unit:'pcs'}); renderAll(); },
+  'acc-del'(el){ checkpoint(); state.accessories = state.accessories.filter(a => a.id !== el.dataset.id); renderAll(); },
+  'val-go'(el){ const i = validate()[+el.dataset.n]; if (i && i.ref) select(i.ref); }
+};
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const fn = ACTIONS[el.dataset.act]; if (!fn) return;
+  if (el.tagName === 'A') e.preventDefault();
+  if (el.dataset.act === 'bundle-focus' || el.dataset.act === 'tab' || el.closest('#cv')) {} else e.stopPropagation();
+  fn(el, e);
+});
+document.getElementById('fileIn').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const data = JSON.parse(r.result);
+      if (!Array.isArray(data.connectors) || !Array.isArray(data.wires)) throw new Error('Not a harness file');
+      checkpoint(); state = migrate(data); sel = null; renderAll(); requestAnimationFrame(fitView);
+    } catch(err){ alert('Could not open file: ' + err.message); }
+  };
+  r.readAsText(f); e.target.value = '';
+});
+document.addEventListener('keydown', e => {
+  const typing = e.target.closest && e.target.closest('input,textarea,select');
+  const mod = e.ctrlKey || e.metaKey;
+  if (e.key === 'Escape'){ if (typing){ e.target.blur(); return; } if (wiring){ wiring = null; renderCanvas(); } else select(null); return; }
+  if (mod && e.key.toLowerCase() === 's'){ e.preventDefault(); ACTIONS.save(); return; }
+  if (typing) return;
+  if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey){ e.preventDefault(); undo(); }
+  else if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))){ e.preventDefault(); redo(); }
+  else if (mod && e.key.toLowerCase() === 'd'){ e.preventDefault(); duplicateSel(); }
+  else if (e.key === 'Delete' || e.key === 'Backspace'){ e.preventDefault(); deleteSelection(); }
+  else if (e.key.toLowerCase() === 'r' && !mod) rotateSel();
+  else if (e.key.toLowerCase() === 'f' && !mod) fitView();
+});
+
+/* ------------------------------------------------------------------ export helpers */
+const slug = s => String(s || 'harness').trim().replace(/[^\w.-]+/g, '_') || 'harness';
+function download(name, data, type){
+  const blob = data instanceof Blob ? data : new Blob([data], {type});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function toCSV(cols, rows){
+  const q = v => { const s = String(v ?? ''); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  return '\ufeff' + [cols.map(q).join(','), ...rows.map(r => cols.map(c => q(r[c])).join(','))].join('\r\n');
+}
+function exportSvg(){
+  const T = THEMES.light;
+  const prevSel = sel, prevWiring = wiring; sel = null; wiring = null;
+  const content = buildDrawing(T, false);
+  sel = prevSel; wiring = prevWiring;
+  const tmp = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  tmp.innerHTML = content; vp.appendChild(tmp);
+  let bb = tmp.getBBox(); tmp.remove();
+  if (!bb.width) bb = {x:0, y:0, width:400, height:200};
+  const pad = 30, tbH = 60, W = Math.max(bb.width + pad * 2, 520), H = bb.height + pad * 2 + tbH;
+  const x0 = bb.x - pad - (W - bb.width - pad * 2) / 2, y0 = bb.y - pad, p = state.project;
+  const tb = `<g transform="translate(${x0},${y0 + H - tbH})" font-family="${FONT}">
+    <rect width="${W}" height="${tbH}" fill="#fff" stroke="#333"/>
+    <line x1="${W * .5}" x2="${W * .5}" y1="0" y2="${tbH}" stroke="#333"/><line x1="${W * .75}" x2="${W * .75}" y1="0" y2="${tbH}" stroke="#333"/>
+    <text x="10" y="22" font-size="16" font-weight="700" fill="#111">${esc(p.name)}</text>
+    <text x="10" y="42" font-size="11" fill="#444">${esc(p.customer)} ${esc(p.description ? '- ' + trunc(p.description, 60) : '')}</text>
+    <text x="${W * .5 + 10}" y="22" font-size="11" fill="#444">Author: ${esc(p.author)}</text>
+    <text x="${W * .5 + 10}" y="42" font-size="11" fill="#444">Date: ${esc(p.date)}</text>
+    <text x="${W * .75 + 10}" y="22" font-size="11" fill="#444">Rev: ${esc(p.rev)}</text>
+    <text x="${W * .75 + 10}" y="42" font-size="11" fill="#444">${state.connectors.length} comps / ${state.wires.length} wires</text></g>`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${Math.round(W)}" height="${Math.round(H)}" viewBox="${x0} ${y0} ${W} ${H}">` +
+    `<rect x="${x0}" y="${y0}" width="${W}" height="${H}" fill="${T.bg}"/>${content}${tb}</svg>`;
+}
+function exportPng(){
+  const s = exportSvg(), m = s.match(/width="(\d+)" height="(\d+)"/), w = +m[1], h = +m[2], scale = 2;
+  const img = new Image();
+  img.onload = () => {
+    const cv = document.createElement('canvas'); cv.width = w * scale; cv.height = h * scale;
+    const ctx = cv.getContext('2d'); ctx.scale(scale, scale); ctx.drawImage(img, 0, 0, w, h);
+    cv.toBlob(b => download(`${slug(state.project.name)}.png`, b), 'image/png');
+  };
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s);
+}
+function doPrint(){
+  const p = state.project;
+  const tbl = (cols, rows) => `<table><thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${cols.map(c => `<td>${esc(r[c])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  document.getElementById('printArea').innerHTML = `<h1>${esc(p.name)}</h1>
+    <div class="tb"><div><b>Rev</b> ${esc(p.rev)}</div><div><b>Date</b> ${esc(p.date)}</div><div><b>Author</b> ${esc(p.author)}</div><div><b>Customer</b> ${esc(p.customer)}</div></div>
+    <p>${esc(p.description)}</p>
+    <div class="drawing">${exportSvg().replace(/^<\?xml[^>]*>/, '')}</div>
+    <h2>Wire list</h2>${tbl(['Wire','Signal','From','To','AWG','Color','Insulation','Cut mm','Strip A','Strip B','Group','Bundle'], wireListRows())}
+    <h2>Bill of materials</h2>${tbl(['Category','Part number','Description','Qty','Unit','Refs'], bomRows())}`;
+  window.print();
+}
+
+/* ------------------------------------------------------------------ library list */
+function renderLib(){
+  const q = document.getElementById('libSearch').value.trim().toLowerCase();
+  document.getElementById('libList').innerHTML = LIB.map((g, gi) => {
+    const items = g.items.map((t, i) => ({t, i})).filter(({t}) => !q || (g.group + ' ' + t.label + ' ' + (t.pn || '') + ' ' + (t.mfr || '')).toLowerCase().includes(q));
+    if (!items.length) return '';
+    return `<div class="lib-group"><div class="lib-group-title">${esc(g.group)}</div>` + items.map(({t, i}) =>
+      `<div class="lib-item" draggable="true" data-act="lib-add" data-g="${gi}" data-i="${i}" title="${esc(t.pn || t.label)}">
+        <span class="lib-swatch" style="background:${t.color}"></span>
+        <div><div>${esc(t.label)}</div><div class="meta">${esc([t.pn, t.awgThick && `${t.awgThick}-${t.awgThin} AWG`].filter(Boolean).join(' \u00b7 '))}</div></div></div>`).join('') + `</div>`;
+  }).join('') || '<p class="muted">No matches</p>';
+}
+document.getElementById('libSearch').addEventListener('input', renderLib);
+document.getElementById('libList').addEventListener('dragstart', e => {
+  const it = e.target.closest('.lib-item'); if (it) e.dataTransfer.setData('text/plain', it.dataset.g + ':' + it.dataset.i);
+});
+
+/* ------------------------------------------------------------------ example */
+function sampleHarness(){
+  const mk = (o) => Object.assign(blankConn(), o);
+  const pd = (labels, extra = {}) => labels.map(l => Object.assign({label:l === '-' ? '' : l, term:'', seal:!!extra.seal, unused:l === '-'}));
+  const J1 = mk({id:'j1', des:'J1', name:'Micro-Fit 6 pos', mfr:'Molex', pn:'43025-0600', pins:6, color:'#2b2b2b', termPn:'43030-0001', awgThick:18, awgThin:24, x:40, y:100, backshell:'Strain relief',
+    pinData:pd(['+12V','GND','CAN_H','CAN_L','SENS','CHASSIS'])});
+  const P2 = mk({id:'p2', des:'J2', name:'DT06-4S', mfr:'TE / Deutsch', pn:'DT06-4S', pins:4, color:'#3a3a3a', termPn:'0462-201-16141', awgThick:14, awgThin:20, sealed:true, sealPn:'integral', plugPn:'0413-204-2005',
+    side:'left', x:640, y:60, pinData:pd(['+12V','GND','CAN_H','CAN_L'], {seal:true})});
+  const P3 = mk({id:'p3', des:'J3', name:'XH 3 pos', mfr:'JST', pn:'XHP-3', pins:3, color:'#efe9d8', termPn:'SXH-001T-P0.6', awgThick:22, awgThin:28, side:'left', x:640, y:260, pinData:pd(['SENS','GND','-'])});
+  const S1 = mk({id:'s1', kind:'splice', des:'S1', name:'Ultrasonic splice', pn:'Ultrasonic weld', pins:1, color:'#9b59b6', awgThick:10, awgThin:28, x:370, y:240, pinData:pd(['GND'])});
+  const T1 = mk({id:'t1', kind:'terminal', des:'T1', name:'Ring terminal M6', mfr:'Generic', pn:'Ring M6 insulated', pins:1, color:'#2c6fd6', awgThick:14, awgThin:20, side:'left', x:360, y:400, pinData:pd(['CHASSIS'])});
+  const W = (wid, fc, fp, tc, tp, o) => Object.assign(blankWire(), {id:'w' + wid, wid:'W' + wid, from:{c:fc, p:fp}, to:{c:tc, p:tp}}, o);
+  return {
+    project:Object.assign(defaultProject(), {name:'Sensor & CAN harness', rev:'B', author:'Engineering', customer:'Demo vehicle', description:'Example harness: power, CAN bus twisted pair, sensor line, ground splice and chassis ground.'}),
+    connectors:[J1, P2, P3, S1, T1],
+    wires:[
+      W(1,'j1',0,'p2',0,{signal:'+12V', awg:18, color:'RD', length:650}),
+      W(2,'j1',1,'s1',0,{signal:'GND', awg:18, color:'BK', length:380}),
+      W(3,'s1',0,'p2',1,{signal:'GND', awg:18, color:'BK', length:300}),
+      W(4,'s1',0,'p3',1,{signal:'GND', awg:22, color:'BK', length:300}),
+      W(5,'j1',2,'p2',2,{signal:'CAN_H', awg:20, color:'YE', length:650, group:'CAN', groupType:'twisted', markers:true}),
+      W(6,'j1',3,'p2',3,{signal:'CAN_L', awg:20, color:'GN', length:650, group:'CAN', groupType:'twisted', markers:true}),
+      W(7,'j1',4,'p3',0,{signal:'SENS', awg:22, color:'BU', stripe:'WH', length:640}),
+      W(8,'j1',5,'t1',0,{signal:'CHASSIS', awg:18, color:'GN', stripe:'YE', length:520, loop:50})
+    ],
+    bundles:[{id:'b1', name:'Main trunk', covering:'Braided sleeve (PET)', coveringPn:'', length:450, color:'#4f8cff', wires:['w1','w2','w5','w6','w7']}],
+    accessories:[{id:'a1', name:'Cable tie 100 mm', pn:'', qty:6, unit:'pcs'}, {id:'a2', name:'Heat shrink 12 mm', pn:'', qty:0.2, unit:'m'}]
+  };
+}
+
+/* ------------------------------------------------------------------ boot */
+function applyTheme(){ document.body.classList.toggle('light', theme === 'light'); }
+function updateTitle(){ document.getElementById('projTitle').textContent = `${state.project.name} - rev ${state.project.rev}`; document.title = `${state.project.name} - Wire Harness Builder`; }
+function renderAll(){ renderCanvas(); renderProps(); renderBottom(); updateTitle(); save(); }
+
+(function boot(){
+  applyTheme();
+  let loaded = null;
+  try { const s = localStorage.getItem('whb.project.v1'); if (s) loaded = JSON.parse(s); } catch(e) {}
+  state = migrate(loaded || sampleHarness());
+  renderLib();
+  renderAll();
+  requestAnimationFrame(fitView);
+  window.addEventListener('resize', () => renderCanvas());
+})();
+</script>
+</body>
+</html>
