@@ -27,7 +27,8 @@ export function connectionRows(h: Harness, a: Analysis): ConnectionRow[] {
     const route = a.routes.get(c.id);
     const status: string[] = [];
     if ((c.kind === "wire" || c.kind === "twisted") && !c.partId) status.push("No Part");
-    if (!c.source || !c.target) status.push("Open");
+    const drainAtOneEnd = c.kind === "shield" && !!(c.source || c.target);
+    if (!c.source || !c.target) { if (!drainAtOneEnd) status.push("Open"); }
     else if (route?.noRoute) status.push("NO ROUTE");
     else if (route?.estimated) status.push("Est. length");
     let part = "";
