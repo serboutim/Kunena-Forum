@@ -1,0 +1,991 @@
+{
+ "version": 1.3,
+ "lengthUnit": "in",
+ "gaugeUnit": "AWG",
+ "wires": [
+  {
+   "id": "p4C0",
+   "color": "Black",
+   "partId": "hHJx",
+   "source": {
+    "id": "Lc1JP9-bnx1",
+    "handle": "Terminal"
+   },
+   "target": {
+    "id": "ldgd",
+    "handle": "Biby"
+   },
+   "layoutPoints": [
+    {
+     "id": "MI-a3z",
+     "schematicPosition": {
+      "x": 900,
+      "y": 870
+     }
+    },
+    {
+     "id": "dMu9K3",
+     "schematicPosition": {
+      "x": 900,
+      "y": 510
+     }
+    }
+   ]
+  },
+  {
+   "id": "Sp2Z",
+   "color": "Pink",
+   "partId": "Ne4i",
+   "source": {
+    "id": "ldgd",
+    "handle": "JMcF"
+   },
+   "target": {
+    "id": "o-ob",
+    "handle": "xUsq"
+   }
+  },
+  {
+   "id": "DIgn",
+   "color": "Red",
+   "partId": "8F3f",
+   "source": {
+    "id": "DTn_",
+    "handle": "Splice"
+   },
+   "target": {
+    "id": "ldgd",
+    "handle": "sW2_"
+   }
+  },
+  {
+   "id": "OVWs",
+   "color": "Red",
+   "partId": "8F3f",
+   "source": {
+    "id": "DTn_",
+    "handle": "Splice"
+   },
+   "target": {
+    "id": "o-ob",
+    "handle": "MHZ6"
+   }
+  },
+  {
+   "id": "9tbL",
+   "color": "Orange",
+   "partId": "QNE-",
+   "source": {
+    "id": "EwNH",
+    "handle": "Left"
+   },
+   "target": {
+    "id": "Lc1JP9-rBx6",
+    "handle": "Terminal"
+   }
+  },
+  {
+   "id": "nBsJ",
+   "color": "Orange",
+   "partId": "QNE-",
+   "source": {
+    "id": "EwNH",
+    "handle": "Right"
+   },
+   "target": {
+    "id": "ldgd",
+    "handle": "znO-"
+   },
+   "layoutPoints": [
+    {
+     "id": "VN4kMD",
+     "schematicPosition": {
+      "x": 870,
+      "y": 780
+     }
+    },
+    {
+     "id": "A7AxD8",
+     "schematicPosition": {
+      "x": 870,
+      "y": 480
+     }
+    }
+   ]
+  },
+  {
+   "id": "06kcze",
+   "color": "Red",
+   "partId": "8F3f",
+   "source": {
+    "id": "liFLYR",
+    "handle": "41zPJn"
+   },
+   "target": {
+    "id": "cwTybA",
+    "handle": "djD6l4"
+   }
+  },
+  {
+   "id": "5EumQx",
+   "color": "Violet",
+   "source": {
+    "id": "liFLYR",
+    "handle": "a_yeAK"
+   },
+   "target": {
+    "id": "cwTybA",
+    "handle": "oS2UCw"
+   }
+  },
+  {
+   "id": "e_Hlxl",
+   "color": "Brown",
+   "source": {
+    "id": "cwTybA",
+    "handle": "l56K30"
+   },
+   "target": {
+    "id": "liFLYR",
+    "handle": "vzai3X"
+   }
+  }
+ ],
+ "connectors": [
+  {
+   "id": "o-ob",
+   "label": "Motor",
+   "partId": "bxk2",
+   "layoutPosition": {
+    "x": 420,
+    "y": 120
+   },
+   "schematicPosition": {
+    "x": 150,
+    "y": 210
+   },
+   "cavities": [
+    {
+     "id": "Yi-I",
+     "contactPartId": "OEl6"
+    },
+    {
+     "id": "Q6o7",
+     "contactPartId": "OEl6"
+    },
+    {
+     "id": "IYVR",
+     "contactPartId": "OEl6"
+    },
+    {
+     "id": "MHZ6",
+     "contactPartId": "TnIO"
+    },
+    {
+     "id": "xUsq",
+     "contactPartId": "TnIO"
+    }
+   ]
+  },
+  {
+   "id": "ldgd",
+   "label": "Controller",
+   "partId": "0sF8",
+   "layoutPosition": {
+    "x": 1050,
+    "y": 210
+   },
+   "schematicPosition": {
+    "x": 990,
+    "y": 210
+   },
+   "cavities": [
+    {
+     "id": "RIrS",
+     "signal": "Phase U",
+     "contactPartId": "Dyod"
+    },
+    {
+     "id": "0B8m",
+     "signal": "Phase V",
+     "contactPartId": "Dyod"
+    },
+    {
+     "id": "XBxw",
+     "signal": "Phase W",
+     "contactPartId": "Dyod"
+    },
+    {
+     "id": "sW2_",
+     "signal": "5V",
+     "contactPartId": "EhjT"
+    },
+    {
+     "id": "JMcF",
+     "signal": "Temp",
+     "contactPartId": "EhjT"
+    },
+    {
+     "id": "LC63",
+     "signal": "SIG 1",
+     "contactPartId": "EhjT"
+    },
+    {
+     "id": "bKCz",
+     "signal": "GND",
+     "contactPartId": "EhjT"
+    },
+    {
+     "id": "dHl4",
+     "signal": "Shield",
+     "contactPartId": "Dyod"
+    },
+    {
+     "id": "znO-",
+     "signal": "Bat +",
+     "contactPartId": "Dyod"
+    },
+    {
+     "id": "Biby",
+     "signal": "Bat -"
+    }
+   ]
+  },
+  {
+   "id": "ZuAT",
+   "label": "Inline",
+   "partId": "y2bR",
+   "layoutPosition": {
+    "x": 630,
+    "y": 300
+   },
+   "schematicPosition": {
+    "x": 360,
+    "y": 480
+   },
+   "cavities": [
+    {
+     "id": "XNv-",
+     "contactPartId": "TnIO"
+    },
+    {
+     "id": "iiqb",
+     "contactPartId": "TnIO"
+    },
+    {
+     "id": "SrNY23",
+     "contactPartId": "TnIO"
+    }
+   ],
+   "shell": {
+    "id": "FcHPjV"
+   }
+  },
+  {
+   "id": "cwTybA",
+   "label": "Inline",
+   "partId": "5mSXoU",
+   "layoutPosition": {
+    "x": 510,
+    "y": 300
+   },
+   "schematicPosition": {
+    "x": 150,
+    "y": 480
+   },
+   "cavities": [
+    {
+     "id": "djD6l4",
+     "contactPartId": "GIEEsn"
+    },
+    {
+     "id": "oS2UCw",
+     "contactPartId": "GIEEsn"
+    },
+    {
+     "id": "l56K30",
+     "contactPartId": "GIEEsn"
+    }
+   ],
+   "shell": {
+    "id": "FcHPjV"
+   }
+  },
+  {
+   "id": "liFLYR",
+   "label": "Throttle",
+   "partId": "6GcgSe",
+   "layoutPosition": {
+    "x": 420,
+    "y": 390
+   },
+   "schematicPosition": {
+    "x": -120,
+    "y": 480
+   },
+   "cavities": [
+    {
+     "id": "41zPJn"
+    },
+    {
+     "id": "a_yeAK"
+    },
+    {
+     "id": "vzai3X"
+    }
+   ]
+  }
+ ],
+ "cables": [
+  {
+   "id": "UKZX",
+   "schematicPosition": {
+    "x": 600,
+    "y": 480
+   },
+   "partId": "Vmtv",
+   "cores": [
+    {
+     "id": "Ul1z",
+     "color": "Red",
+     "source": {
+      "id": "ZuAT",
+      "handle": "XNv-"
+     },
+     "target": {
+      "id": "DTn_",
+      "handle": "Splice"
+     },
+     "targetLayoutPoints": [
+      {
+       "id": "M5Xe20",
+       "schematicPosition": {
+        "x": 720,
+        "y": 510
+       }
+      }
+     ]
+    },
+    {
+     "id": "5ZSq",
+     "color": "Green",
+     "source": {
+      "id": "ZuAT",
+      "handle": "iiqb"
+     },
+     "target": {
+      "id": "ldgd",
+      "handle": "LC63"
+     },
+     "targetLayoutPoints": [
+      {
+       "id": "dM2iwy",
+       "schematicPosition": {
+        "x": 750,
+        "y": 540
+       }
+      },
+      {
+       "id": "kxRnaX",
+       "schematicPosition": {
+        "x": 750,
+        "y": 390
+       }
+      }
+     ]
+    },
+    {
+     "id": "bt-Y",
+     "color": "Brown",
+     "source": {
+      "id": "ldgd",
+      "handle": "bKCz"
+     },
+     "target": {
+      "id": "ZuAT",
+      "handle": "SrNY23"
+     },
+     "sourceLayoutPoints": [
+      {
+       "id": "QkVtHS",
+       "schematicPosition": {
+        "x": 780,
+        "y": 570
+       }
+      },
+      {
+       "id": "JWo8zw",
+       "schematicPosition": {
+        "x": 780,
+        "y": 420
+       }
+      }
+     ]
+    }
+   ],
+   "shield": {
+    "id": "OP6H",
+    "color": "Shield",
+    "source": {
+     "id": "ldgd",
+     "handle": "dHl4"
+    },
+    "target": {
+     "id": "ZuAT",
+     "handle": "FcHPjV"
+    },
+    "sourceLayoutPoints": [
+     {
+      "id": "PO67hj",
+      "schematicPosition": {
+       "x": 810,
+       "y": 600
+      }
+     },
+     {
+      "id": "p2w1JZ",
+      "schematicPosition": {
+       "x": 810,
+       "y": 450
+      }
+     }
+    ]
+   }
+  }
+ ],
+ "twistedWires": [
+  {
+   "id": "6_u7IL",
+   "schematicPosition": {
+    "x": 570,
+    "y": 210
+   },
+   "wires": [
+    {
+     "id": "aIpnUw",
+     "color": "Blue",
+     "partId": "gIQ1",
+     "source": {
+      "id": "o-ob",
+      "handle": "Yi-I"
+     },
+     "target": {
+      "id": "ldgd",
+      "handle": "RIrS"
+     }
+    },
+    {
+     "id": "rYUBj5",
+     "color": "Yellow",
+     "partId": "8uqJ",
+     "source": {
+      "id": "o-ob",
+      "handle": "Q6o7"
+     },
+     "target": {
+      "id": "ldgd",
+      "handle": "0B8m"
+     }
+    },
+    {
+     "id": "h1xShz",
+     "color": "Green",
+     "partId": "9xdI",
+     "source": {
+      "id": "o-ob",
+      "handle": "IYVR"
+     },
+     "target": {
+      "id": "ldgd",
+      "handle": "XBxw"
+     }
+    }
+   ]
+  }
+ ],
+ "diodes": [
+  {
+   "id": "EwNH",
+   "partId": "SUc-",
+   "locationId": "nkXS",
+   "layoutPosition": {
+    "x": 870,
+    "y": 150
+   },
+   "schematicPosition": {
+    "x": 720,
+    "y": 780
+   }
+  }
+ ],
+ "splices": [
+  {
+   "id": "DTn_",
+   "partId": "P3zw",
+   "locationId": "ldgd",
+   "layoutPosition": {
+    "x": 1050,
+    "y": 150
+   },
+   "schematicPosition": {
+    "x": 720,
+    "y": 330
+   }
+  }
+ ],
+ "bundles": [
+  {
+   "id": "EG0l",
+   "length": {
+    "unit": "mm",
+    "value": 30
+   },
+   "sourceId": "ldgd",
+   "targetId": "nkXS"
+  },
+  {
+   "id": "un8Y",
+   "label": "Bat +",
+   "labelColor": "Red",
+   "sourceId": "Lc1JP9-rBx6",
+   "targetId": "Dd3Q"
+  },
+  {
+   "id": "l_jh",
+   "length": {
+    "unit": "mm",
+    "value": 120
+   },
+   "sourceId": "nkXS",
+   "targetId": "Dd3Q",
+   "layoutPoints": [
+    {
+     "id": "6uIMSf",
+     "layoutPosition": {
+      "x": 870,
+      "y": 360
+     }
+    }
+   ]
+  },
+  {
+   "id": "OKbl",
+   "label": "BAT -",
+   "labelColor": "Black",
+   "sourceId": "Dd3Q",
+   "targetId": "Lc1JP9-bnx1"
+  },
+  {
+   "id": "DkaK",
+   "length": {
+    "unit": "mm",
+    "value": 200
+   },
+   "sourceId": "nkXS",
+   "targetId": "bNJD"
+  },
+  {
+   "id": "cllf",
+   "length": {
+    "unit": "mm",
+    "value": 80
+   },
+   "sourceId": "ZuAT",
+   "targetId": "bNJD"
+  },
+  {
+   "id": "KYU3",
+   "length": {
+    "unit": "mm",
+    "value": 150
+   },
+   "sourceId": "o-ob",
+   "targetId": "bNJD",
+   "layoutPoints": [
+    {
+     "id": "kp1Dh-",
+     "layoutPosition": {
+      "x": 690,
+      "y": 120
+     }
+    }
+   ]
+  },
+  {
+   "id": "tjYiQr",
+   "sourceId": "liFLYR",
+   "targetId": "cwTybA",
+   "layoutPoints": [
+    {
+     "id": "oZk9-W",
+     "layoutPosition": {
+      "x": 420,
+      "y": 300
+     }
+    }
+   ]
+  }
+ ],
+ "mates": [
+  {
+   "id": "H0KRYm",
+   "sourceId": "cwTybA",
+   "targetId": "ZuAT"
+  }
+ ],
+ "groups": [
+  {
+   "id": "Lc1JP9",
+   "name": "Battery",
+   "partId": "pvgRGG",
+   "document": {
+    "terminals": [
+     {
+      "id": "rBx6",
+      "type": "Ring",
+      "partId": "-xUh",
+      "signal": "14.8V",
+      "layoutPosition": {
+       "x": 1050,
+       "y": 330
+      },
+      "schematicPosition": {
+       "x": 360,
+       "y": 780
+      }
+     },
+     {
+      "id": "bnx1",
+      "type": "Ring",
+      "partId": "-xUh",
+      "signal": "GND",
+      "layoutPosition": {
+       "x": 1050,
+       "y": 390
+      },
+      "schematicPosition": {
+       "x": 360,
+       "y": 870
+      }
+     }
+    ]
+   }
+  }
+ ],
+ "branchPoints": [
+  {
+   "id": "nkXS",
+   "layoutPosition": {
+    "x": 870,
+    "y": 210
+   }
+  },
+  {
+   "id": "Dd3Q",
+   "layoutPosition": {
+    "x": 960,
+    "y": 360
+   }
+  },
+  {
+   "id": "bNJD",
+   "layoutPosition": {
+    "x": 750,
+    "y": 210
+   }
+  }
+ ],
+ "wireParts": [
+  {
+   "id": "QNE-",
+   "color": "Orange",
+   "gauge": {
+    "unit": "AWG",
+    "value": 6
+   },
+   "partNumber": "GW0806ORG",
+   "manufacturer": "GeneralWire Tech"
+  },
+  {
+   "id": "hHJx",
+   "color": "Black",
+   "gauge": {
+    "unit": "AWG",
+    "value": 6
+   },
+   "partNumber": "GW0806BLK",
+   "manufacturer": "GeneralWire Tech"
+  },
+  {
+   "id": "8F3f",
+   "color": "Red",
+   "gauge": {
+    "unit": "AWG",
+    "value": 20
+   },
+   "partNumber": "GW0520RD",
+   "manufacturer": "GeneralWire Tech"
+  },
+  {
+   "id": "gIQ1",
+   "color": "Blue",
+   "gauge": {
+    "unit": "AWG",
+    "value": 6
+   },
+   "partNumber": "GW0806OBL",
+   "manufacturer": "GeneralWire Tech"
+  },
+  {
+   "id": "8uqJ",
+   "color": "Yellow",
+   "gauge": {
+    "unit": "AWG",
+    "value": 6
+   },
+   "partNumber": "GW0806YL",
+   "manufacturer": "GeneralWire Tech"
+  },
+  {
+   "id": "9xdI",
+   "color": "Green",
+   "gauge": {
+    "unit": "AWG",
+    "value": 6
+   },
+   "partNumber": "GW0806GRN",
+   "manufacturer": "GeneralWire Tech"
+  },
+  {
+   "id": "Ne4i",
+   "color": "Pink",
+   "gauge": {
+    "unit": "AWG",
+    "value": 20
+   },
+   "partNumber": "GW0520PK",
+   "manufacturer": "GeneralWire Tech"
+  }
+ ],
+ "cableParts": [
+  {
+   "id": "Vmtv",
+   "color": "Black",
+   "shielded": true,
+   "partNumber": "GW0320-C",
+   "manufacturer": "GeneralWire Tech",
+   "cores": [
+    {
+     "id": "JHGl",
+     "color": "Red",
+     "gauge": {
+      "unit": "AWG",
+      "value": 20
+     }
+    },
+    {
+     "id": "Q1HA",
+     "color": "Green",
+     "gauge": {
+      "unit": "AWG",
+      "value": 20
+     }
+    },
+    {
+     "id": "na_E",
+     "color": "Brown",
+     "gauge": {
+      "unit": "AWG",
+      "value": 20
+     }
+    }
+   ]
+  }
+ ],
+ "diodeParts": [
+  {
+   "id": "SUc-",
+   "current": 6,
+   "voltage": 42,
+   "partNumber": "D483",
+   "manufacturer": "Universal Electric"
+  }
+ ],
+ "spliceParts": [
+  {
+   "id": "P3zw",
+   "partNumber": "1867S-SCI",
+   "manufacturer": "StandCon Inc."
+  }
+ ],
+ "contactParts": [
+  {
+   "id": "TnIO",
+   "type": "Crimp",
+   "gender": "Pin",
+   "maxGauge": {
+    "unit": "AWG",
+    "value": 16
+   },
+   "minGauge": {
+    "unit": "AWG",
+    "value": 20
+   },
+   "partNumber": "UEK-SM01",
+   "manufacturer": "Universal Electric"
+  },
+  {
+   "id": "OEl6",
+   "type": "Crimp",
+   "gender": "Pin",
+   "maxGauge": {
+    "unit": "AWG",
+    "value": 6
+   },
+   "minGauge": {
+    "unit": "AWG",
+    "value": 8
+   },
+   "partNumber": "UEK-SM04",
+   "manufacturer": "Universal Electric"
+  },
+  {
+   "id": "EhjT",
+   "type": "Crimp",
+   "gender": "Socket",
+   "maxGauge": {
+    "unit": "AWG",
+    "value": 18
+   },
+   "minGauge": {
+    "unit": "AWG",
+    "value": 22
+   },
+   "partNumber": "1822-PWS",
+   "manufacturer": "Power Link Ltd."
+  },
+  {
+   "id": "Dyod",
+   "type": "Crimp",
+   "gender": "Socket",
+   "maxGauge": {
+    "unit": "AWG",
+    "value": 6
+   },
+   "minGauge": {
+    "unit": "AWG",
+    "value": 8
+   },
+   "partNumber": "0608-PWS",
+   "manufacturer": "Power Link Ltd."
+  },
+  {
+   "id": "GIEEsn",
+   "type": "Crimp",
+   "gender": "Socket",
+   "maxGauge": {
+    "unit": "AWG",
+    "value": 16
+   },
+   "minGauge": {
+    "unit": "AWG",
+    "value": 20
+   },
+   "partNumber": "UEK-SF01",
+   "manufacturer": "Universal Electric"
+  }
+ ],
+ "terminalParts": [
+  {
+   "id": "-xUh",
+   "size": {
+    "unit": "mm",
+    "value": 4
+   },
+   "type": "Ring",
+   "color": "Gray",
+   "maxGauge": {
+    "unit": "AWG",
+    "value": 6
+   },
+   "minGauge": {
+    "unit": "AWG",
+    "value": 8
+   },
+   "partNumber": "06R-SCI",
+   "manufacturer": "StandCon Inc."
+  }
+ ],
+ "connectorParts": [
+  {
+   "id": "y2bR",
+   "color": "Blue",
+   "gender": "Female",
+   "hasShell": true,
+   "partNumber": "UEK04-04-S",
+   "manufacturer": "Universal Electric",
+   "numberOfCavities": 3
+  },
+  {
+   "id": "bxk2",
+   "color": "Blue",
+   "gender": "Male",
+   "partNumber": "UEK04-05",
+   "manufacturer": "Universal Electric",
+   "numberOfCavities": 5
+  },
+  {
+   "id": "0sF8",
+   "color": "Orange",
+   "gender": "Male",
+   "hasShell": false,
+   "partNumber": "PW-10-MK-06",
+   "manufacturer": "Power Link Ltd.",
+   "numberOfCavities": 10,
+   "designationStrategy": {
+    "type": "custom",
+    "labels": [
+     "1",
+     "2",
+     "3",
+     "4",
+     "5",
+     "6",
+     "7",
+     "8",
+     "9",
+     "10"
+    ]
+   }
+  },
+  {
+   "id": "5mSXoU",
+   "color": "Blue",
+   "gender": "Male",
+   "hasShell": true,
+   "partNumber": "UEK04-03-S",
+   "manufacturer": "Universal Electric",
+   "numberOfCavities": 3
+  },
+  {
+   "id": "6GcgSe",
+   "url": "nexbridgeelectronics.fake/connectors/nexlock",
+   "color": "White",
+   "gender": "Male",
+   "partNumber": "NLK-3P-M-GY",
+   "description": "2.54 Male Connector",
+   "manufacturer": "Nexbridge Electronics Co.",
+   "numberOfCavities": 3
+  }
+ ],
+ "groupParts": [
+  {
+   "id": "pvgRGG",
+   "url": "https://vortexpowersystems.fake/products/vpx-9400-4s",
+   "color": "Blue",
+   "partNumber": "VPX-9400 UltraCell 4S",
+   "description": "4S1P 14.8 V Li-Ion Battery",
+   "manufacturer": "Vortex Power Systems"
+  }
+ ]
+}
