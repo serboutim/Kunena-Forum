@@ -67,6 +67,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ctx { position: fixed; z-index: 100; min-width: 220px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 12px 32px rgba(15, 23, 42, 0.2); padding: 4px; }
 .mi { display: flex; align-items: center; justify-content: space-between; gap: 18px; width: 100%; border: 0; background: transparent; text-align: left; padding: 6px 10px; border-radius: 5px; cursor: pointer; white-space: nowrap; position: relative; }
 .mi:hover { background: #f1f5f9; }
+.mi.disabled { color: #94a3b8; cursor: default; }
 .mi:disabled { color: #94a3b8; background: transparent; cursor: default; }
 .mi.danger { color: var(--danger); }
 .mi .kbd { color: var(--muted); font-size: 11px; }
@@ -159,7 +160,8 @@ textarea.input { resize: vertical; min-height: 60px; }
 .svg-muted { font-size: 10px; fill: #64748b; pointer-events: none; }
 .node-hit { cursor: move; }
 .handle { cursor: crosshair; }
-.handle:hover { fill: var(--accent); }
+.handle:hover { fill: var(--accent); stroke-width: 2.5px; }
+.canvas-hint { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); background: rgba(255, 255, 255, 0.92); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-size: 12px; color: var(--muted); pointer-events: none; white-space: nowrap; }
 .wire-hit { cursor: pointer; }
 .lp { cursor: move; }
 

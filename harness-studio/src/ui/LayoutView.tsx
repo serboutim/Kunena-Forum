@@ -190,6 +190,7 @@ export function LayoutView() {
     <div className="stage">
       <Canvas ref={api} viewKey="layout" onContextMenu={onContextMenu} onDoubleClick={onDoubleClick}
         overlay={<>
+          <div className="canvas-hint">Drag from a node handle to draw a bundle · Shift-drag to mate connectors · double-click a length to edit it</div>
           <div className="palette">
             <button onClick={() => add("branchPoint", viewCenter())}>◉ Branch point</button>
             <button onClick={() => add("connector", viewCenter())}>▭ Connector</button>

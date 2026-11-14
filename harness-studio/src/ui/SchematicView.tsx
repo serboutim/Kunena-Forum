@@ -243,6 +243,7 @@ export function SchematicView() {
     <div className="stage">
       <Canvas ref={api} viewKey="schematic" onBackgroundPointerDown={onBackgroundPointerDown} onContextMenu={onContextMenu} onDoubleClick={onDoubleClick}
         overlay={<>
+          <div className="canvas-hint">Drag between the white handles to draw wires · double-click a cavity to name its signal · right-click for more</div>
           <div className="palette">
             <button onClick={() => add("connector", center())}>▭ Connector</button>
             <button onClick={() => add("terminal", center(), "Ring")}>◎ Terminal</button>
@@ -358,7 +359,7 @@ function nodeStroke(selected: boolean, warn?: string) {
 }
 
 function Handle({ id, handle, p }: { id: string; handle: string; p: Pos }) {
-  return <circle className="handle" data-cp-id={id} data-cp-handle={handle} cx={p.x} cy={p.y} r={4.5} fill="#fff" stroke="#334155" strokeWidth={1.5} />;
+  return <circle className="handle" data-cp-id={id} data-cp-handle={handle} cx={p.x} cy={p.y} r={4.5} fill="#fff" stroke="#334155" strokeWidth={1.5}><title>Drag to another handle to draw a wire (Ctrl/Cmd-drag moves its wires)</title></circle>;
 }
 
 function Header({ id, a, x, y, w, showIds, vertical }: { id: string; a: Analysis; x: number; y: number; w: number; showIds: boolean; vertical?: boolean }) {
@@ -520,7 +521,7 @@ function InlineNode({ id, kind, el, a, selected, dim, showIds, warn }: { id: str
           <text x={cx} y={r.y - 9.5} textAnchor="middle" dominantBaseline="central" style={{ fontSize: 10, fill: "#fff", fontWeight: 600 }}>{name}</text>
         </g>
       )}
-      {anchors.map((an, i) => <circle key={i} className="handle" data-cp-id={id} data-cp-handle={an.handle} cx={an.p.x} cy={an.p.y} r={3.5} fill="#fff" stroke="#334155" strokeWidth={1.2} />)}
+      {anchors.map((an, i) => <circle key={i} className="handle" data-cp-id={id} data-cp-handle={an.handle} cx={an.p.x} cy={an.p.y} r={3.5} fill="#fff" stroke="#334155" strokeWidth={1.2}><title>Drag to another handle to draw a wire</title></circle>)}
       <WarnBadge x={r.x + 30} y={r.y} level={warn} />
     </g>
   );

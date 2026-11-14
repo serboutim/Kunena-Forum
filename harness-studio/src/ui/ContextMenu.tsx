@@ -55,21 +55,23 @@ export function MenuList({ items, close }: { items: MenuItem[]; close: () => voi
         if ("heading" in it) return <div key={i} className="mlabel">{it.heading}</div>;
         if ("custom" in it) return <div key={i}>{it.custom}</div>;
         if ("colors" in it) return <ColorGrid key={i} selected={it.selected} allowNone={it.allowNone} onPick={(c) => { it.colors(c); close(); }} />;
+        if (it.children) {
+          return (
+            <div key={i} role="menuitem" aria-haspopup="menu" className={`mi${it.disabled ? " disabled" : ""}`}>
+              <span>{it.label}</span>
+              <span className="kbd">▸</span>
+              {!it.disabled && (
+                <div className="submenu ctx" style={{ position: "absolute" }}>
+                  <MenuList items={it.children} close={close} />
+                </div>
+              )}
+            </div>
+          );
+        }
         return (
-          <button
-            key={i}
-            className={`mi${it.danger ? " danger" : ""}`}
-            disabled={it.disabled}
-            onClick={() => { if (it.children) return; it.onClick?.(); close(); }}
-          >
+          <button key={i} className={`mi${it.danger ? " danger" : ""}`} disabled={it.disabled} onClick={() => { it.onClick?.(); close(); }}>
             <span>{it.label}</span>
             {it.kbd && <span className="kbd">{it.kbd}</span>}
-            {it.children && <span className="kbd">▸</span>}
-            {it.children && (
-              <div className="submenu ctx" style={{ position: "absolute" }}>
-                <MenuList items={it.children} close={close} />
-              </div>
-            )}
           </button>
         );
       })}
